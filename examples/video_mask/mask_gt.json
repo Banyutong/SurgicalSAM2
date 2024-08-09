@@ -1,0 +1,116 @@
+{
+  "images": [
+    {
+      "file_name": "4_22450.jpg",
+      "height": 480,
+      "width": 854,
+      "id": 4022450,
+      "is_det_keyframe": true,
+      "ds": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "video_id": 4,
+      "frame_id": 29,
+      "is_ds_keyframe": true
+    }
+  ],
+  "annotations": [
+    {
+      "bbox": [
+        543.0,
+        230.0,
+        45.0,
+        44.0
+      ],
+      "segmentation": {
+        "size": [
+          480,
+          854
+        ],
+        "counts": "fhn75g>9I4M3M>A2O1O1O1000000O100000000O1000000O11O001O1O002N2N2N2N3M2N3N1M3M2M2O2N2M2O2N2N1N3Nn]l3"
+      },
+      "area": 1329,
+      "id": 40224500,
+      "category_id": 3,
+      "image_id": 4022450,
+      "instance_id": 3,
+      "video_id": 4
+    },
+    {
+      "bbox": [
+        174.0,
+        0.0,
+        469.0,
+        326.0
+      ],
+      "segmentation": {
+        "size": [
+          480,
+          854
+        ],
+        "counts": "Pba21P?1N1O2N2N1O2N1O2N1O2O1N1O2N1O2N2N1O2N1O1O100O1O1O2N1O1O1O1O1O100O1O1O1O2N1O1O1O1O1O100O1O2N1O1O1O1O2N1O100O1O2N1O1O1O2N1O1O100O2N1O1O1O2N1O1O1O1O010O1O1O1O001O1O1O10O01O1O1FSM_Dn2i;1O1GPM`DQ3_;oLaDR3^;oLaDQ3_;PMaDP3^;PMbDQ3];PMbDQ3];PMbDQ3];PMbDQ3];oLcDR3\\;oLcDR3\\;nLdDS3[;nLdDS3[;nLeDR3Z;:01O100O1O1O1O001O1O1O1O2N1O1O2N1O2N1O1O2N10O01O001O001O002N3M3M3M3M3M3M3M3M2N2O2M2N3M2N2N3M2N3M2N2N2N2N1O2N2N1O2N1O2O0O2N1O2N2N101N1O1O2N100O1O2N1O100O1O2N100O1O2N1O100O1O1O1O100N2O1N2O1N2O1O1N2cIXH`5h7_JZH_5h7_JZH_5g7`JZH_5h7`JYH\\5EUJR8>[H[5DVJS8>[H[5g7dJ]HY5d7eJ^HZ5b7eJ`HZ5`7fJaHY5`7eJlHP5T7oJoHo4R7oJQIo4o6QKSIm4n6RKSIm4m6SKTIl4m6RKTIn4l6PKWIo4^8O1O00001O00001O00000000000000001OO1O1O1O1M3N200000000000000O100O100O1O100O1M3L4N2O1O1O1O1000000000000O1O1O10000001OO1000000O1N2O1N21O1OO1000000O100O1O10000000000000000000000000000000000000000000000O10000O10000O10000O1N2O1O1N2O1O1O1O1N2O1O1O11O1O1OO1O100O1O1O1O1O1K5000000000000N2M3N20000O1O1O3N2N3M2J6J6L4M3M3L4M3M3M3N2N2N2M3N2N1O2M3N1O2M2O2N2N101N101O1O1O1N2O1O1O1N2N2N2N2N2N2M2M4M2K5M4N3M4L4L7J1aLjDP3c;00N2N2K5M211O000000000000000O100O101N2O1O1O10O01O0]MgC`2X<^MjCa2[<O4L7I6K3L1O2N1AlBQOU=o0mBnNU=Q1lBlNV=T1kBjNW=U1kBhNV=W1:N2N5K3M3N2N2O1N3H8KngR3"
+      },
+      "area": 85739,
+      "id": 40224501,
+      "category_id": 5,
+      "image_id": 4022450,
+      "instance_id": 5,
+      "video_id": 4
+    },
+    {
+      "bbox": [
+        191.0,
+        0.0,
+        86.0,
+        11.0
+      ],
+      "segmentation": {
+        "size": [
+          480,
+          854
+        ],
+        "counts": "Qai21o>00000000000000001O0000000000000000001O00000000000000001O0000000000000000001O00000000000000001O0000000000000000001O00000000000000001O0000000O11O1O001O10O01O1O1O001O1O0010e^^8"
+      },
+      "area": 373,
+      "id": 40224502,
+      "category_id": 6,
+      "image_id": 4022450,
+      "instance_id": 6,
+      "video_id": 4
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "cystic_plate",
+      "supercategory": "anatomy"
+    },
+    {
+      "id": 2,
+      "name": "calot_triangle",
+      "supercategory": "anatomy"
+    },
+    {
+      "id": 3,
+      "name": "cystic_artery",
+      "supercategory": "anatomy"
+    },
+    {
+      "id": 4,
+      "name": "cystic_duct",
+      "supercategory": "anatomy"
+    },
+    {
+      "id": 5,
+      "name": "gallbladder",
+      "supercategory": "anatomy"
+    },
+    {
+      "id": 6,
+      "name": "tool",
+      "supercategory": "tool"
+    }
+  ]
+}

@@ -2,12 +2,13 @@ import argparse
 import os
 import torch
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image
 import json
-import colorsys
 from sam2.build_sam import build_sam2_video_predictor
-from utils import *
-from groundtruth2point import sample_points_from_bboxes, sample_points_from_masks
+from utils.mask_helpers import rle_to_binary_mask, get_model_cfg, mask_to_rle, mask_to_bbox
+from utils.visualization import visualize_first_frame_mask, get_color_map
+from utils.groundtruth2point import sample_points_from_bboxes, sample_points_from_masks
+import cv2
 import matplotlib.pyplot as plt
 
 
@@ -57,13 +58,14 @@ def main(args):
 		binary_masks = [rle_to_binary_mask(mask) for mask in masks]
 		sampled_points = sample_points_from_masks(binary_masks, num_points=args.sample_points, include_center=True)
 
-	# Visualize bounding boxes and sample points for the first frame
+	# Visualize first frame
 	first_frame_path = os.path.join(args.video_dir, frame_names[0])
 	first_frame = Image.open(first_frame_path)
-	# Ensure the output directory exists
 	os.makedirs(args.output_dir, exist_ok=True)
 	combined_output_path = os.path.join(args.output_dir, 'first_frame_visualization.png')
-	visualize_first_frame(first_frame, bboxes, sampled_points, combined_output_path)
+
+	visualize_first_frame_mask(first_frame, binary_masks if args.gt_type == 'mask' else [
+		np.zeros_like(np.array(first_frame))[:, :, 0] for _ in bboxes], sampled_points, combined_output_path)
 
 	# Add points for each object
 	for obj_id, points in enumerate(sampled_points, start=1):
@@ -99,7 +101,7 @@ def main(args):
 	gif_frames = []
 	for frame_idx, frame_name in enumerate(frame_names):
 		original_img = Image.open(os.path.join(args.video_dir, frame_name))
-		mask = Image.new('RGBA', original_img.size, (0, 0, 0, 0))
+		contour_image = np.array(original_img)
 
 		# Save pixel masks and create COCO annotations
 		for out_obj_id, out_mask in video_segments[frame_idx].items():
@@ -115,21 +117,28 @@ def main(args):
 			mask_img.save(os.path.join(args.output_dir, 'pixel_masks', f'frame_{frame_idx:04d}_obj_{out_obj_id}.png'))
 
 			# Create COCO annotation
-			coco_ann = create_coco_annotation(out_mask, frame_idx, out_obj_id, annotation_id)
-			if coco_ann:
+			rle = mask_to_rle(out_mask)
+			bbox = mask_to_bbox(out_mask)
+			if bbox is not None:
+				coco_ann = {
+					"id": annotation_id,
+					"image_id": frame_idx,
+					"category_id": out_obj_id,
+					"segmentation": rle,
+					"area": int(np.sum(out_mask)),
+					"bbox": bbox,
+					"iscrowd": 0,
+				}
 				coco_annotations.append(coco_ann)
 				annotation_id += 1
 
 			# Create visualization
-			color = tuple(int(c * 255) for c in object_colors[out_obj_id - 1]) + (
-			128,)  # Convert to 0-255 range and add alpha
-			colored_mask = Image.new('RGBA', mask_img.size, color)
-			mask = Image.alpha_composite(mask,
-			                             Image.composite(colored_mask, Image.new('RGBA', mask_img.size, (0, 0, 0, 0)),
-			                                             mask_img))
+			color = [int(c * 255) for c in object_colors[out_obj_id - 1]]
+			contours, _ = cv2.findContours(out_mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+			cv2.drawContours(contour_image, contours, -1, color, 2)
 
 		# Save visualization
-		result = Image.alpha_composite(original_img.convert('RGBA'), mask)
+		result = Image.fromarray(contour_image)
 
 		if frame_idx % args.vis_frame_stride == 0:
 			gif_frames.append(result)
