@@ -1,0 +1,45 @@
+{
+  "images": [
+    {
+      "id": 0,
+      "file_name": "frame_0000.jpg",
+      "height": 720,
+      "width": 1280
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 0,
+      "category_id": 1,
+      "bbox": [
+      195.00,
+      48.00,
+      355.00,
+      245.00
+    ]
+
+    },
+    {
+      "id": 2,
+      "image_id": 0,
+      "category_id": 2,
+      "bbox": [
+        332.00,
+  5.00,
+  158.00,
+  311.00
+      ]
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "Object 1"
+    },
+    {
+      "id": 2,
+      "name": "Object 2"
+    }
+  ]
+}
