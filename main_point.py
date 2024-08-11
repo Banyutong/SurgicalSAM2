@@ -6,10 +6,13 @@ from PIL import Image
 import json
 from sam2.build_sam import build_sam2_video_predictor
 from utils.mask_helpers import rle_to_binary_mask, get_model_cfg, mask_to_rle, mask_to_bbox
-from utils.visualization import visualize_first_frame_mask, get_color_map
-from utils.groundtruth2point import sample_points_from_bboxes, sample_points_from_masks
+from utils.visualization import visualize_first_frame_mask, get_color_map, visualize_first_frame_bbx, \
+	visualize_pixel_mask
+from utils.utils import find_frames
+from utils.groundtruth2point import sample_points_from_bboxes, sample_points_from_masks, sample_points_from_pixel_mask
 import cv2
 import matplotlib.pyplot as plt
+import re
 
 
 def parse_args():
@@ -19,8 +22,8 @@ def parse_args():
 	parser.add_argument('--output_dir', type=str, default='.', help='Output directory')
 	parser.add_argument('--vis_frame_stride', type=int, default=15, help='Stride for visualization frames')
 	parser.add_argument('--gt_path', type=str, required=True, help='Path to ground truth data')
-	parser.add_argument('--gt_type', type=str, choices=['bbox', 'mask'], required=True,
-	                    help='Type of ground truth (bbox or mask)')
+	parser.add_argument('--gt_type', type=str, choices=['bbox', 'mask', 'pixel_mask'], required=True,
+	                    help='Type of ground truth (bbox, mask, or pixel_mask)')
 	parser.add_argument('--sample_points', type=int, default=1, help='Number of points to sample for each object')
 	return parser.parse_args()
 
@@ -32,40 +35,40 @@ def main(args):
 		torch.backends.cuda.matmul.allow_tf32 = True
 		torch.backends.cudnn.allow_tf32 = True
 
-	frame_names = [
-		p for p in os.listdir(args.video_dir)
-		if os.path.splitext(p)[-1].lower() in [".jpg", ".jpeg"]
-	]
-	frame_names.sort(key=lambda p: int(os.path.splitext(p)[0]))
-
+	# IF images have pixel masks in the same dir, then may need to rewrite find_frames functions and misc.py to filter masks.
+	frame_names = find_frames(args.video_dir)
 	model_cfg = get_model_cfg(os.path.basename(args.sam2_checkpoint))
 	predictor = build_sam2_video_predictor(model_cfg, args.sam2_checkpoint)
 	inference_state = predictor.init_state(video_path=args.video_dir)
 
-	# Load ground truth data
-	with open(args.gt_path, 'r') as f:
-		gt_data = json.load(f)
-
 	prompts = {}
 	ann_frame_idx = 0  # Assuming we're using the first frame for annotation
 
-	# Process ground truth data
-	if args.gt_type == 'bbox':
-		bboxes = [ann['bbox'] for ann in gt_data['annotations']]
-		sampled_points = sample_points_from_bboxes(bboxes, num_points=args.sample_points, include_center=True)
-	elif args.gt_type == 'mask':
-		masks = [ann['segmentation'] for ann in gt_data['annotations']]
-		binary_masks = [rle_to_binary_mask(mask) for mask in masks]
-		sampled_points = sample_points_from_masks(binary_masks, num_points=args.sample_points, include_center=True)
-
-	# Visualize first frame
+	# first frame path
 	first_frame_path = os.path.join(args.video_dir, frame_names[0])
 	first_frame = Image.open(first_frame_path)
 	os.makedirs(args.output_dir, exist_ok=True)
 	combined_output_path = os.path.join(args.output_dir, 'first_frame_visualization.png')
 
-	visualize_first_frame_mask(first_frame, binary_masks if args.gt_type == 'mask' else [
-		np.zeros_like(np.array(first_frame))[:, :, 0] for _ in bboxes], sampled_points, combined_output_path)
+	if args.gt_type == 'pixel_mask':
+		gt_mask = np.array(Image.open(args.gt_path))
+		sampled_points = sample_points_from_pixel_mask(gt_mask, num_points=args.sample_points, include_center=True)
+		visualize_pixel_mask(first_frame, gt_mask, sampled_points, combined_output_path)
+	else:
+		with open(args.gt_path, 'r') as f:
+			gt_data = json.load(f)
+
+	# Process ground truth data
+	if args.gt_type == 'bbox':
+		bboxes = [ann['bbox'] for ann in gt_data['annotations']]
+		sampled_points = sample_points_from_bboxes(bboxes, num_points=args.sample_points, include_center=True)
+		visualize_first_frame_bbx(first_frame, bboxes, sampled_points, combined_output_path)
+
+	elif args.gt_type == 'mask':
+		masks = [ann['segmentation'] for ann in gt_data['annotations']]
+		binary_masks = [rle_to_binary_mask(mask) for mask in masks]
+		sampled_points = sample_points_from_masks(binary_masks, num_points=args.sample_points, include_center=True)
+		visualize_first_frame_mask(first_frame, binary_masks, sampled_points, combined_output_path)
 
 	# Add points for each object
 	for obj_id, points in enumerate(sampled_points, start=1):
@@ -150,11 +153,9 @@ def main(args):
 			"height": original_img.height,
 			"width": original_img.width
 		})
-
 	# Save GIF
 	gif_frames[0].save(os.path.join(args.output_dir, 'visualization.gif'), save_all=True, append_images=gif_frames[1:],
 	                   duration=500, loop=0)
-
 	# Save COCO format JSON
 	coco_data = {
 		"images": coco_images,
