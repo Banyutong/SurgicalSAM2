@@ -112,6 +112,23 @@ This is for colored pixel mask
 python main_point.py --video_dir examples/video_pixel  --sam2_checkpoint checkpoints/sam2_hiera_tiny.pt --output_dir test_color_pixel_output --gt_path examples/video_pixel/frame_561_endo_color_mask.png --gt_type pixel_mask
 ```
 
+### Complete Pipeline on Endoscapes2023 Dataset
+See `SurgicalSAM2/Endoscapes2023_Pipeline` for details.
+
+The `point_prompt.ipynb` provides a step-by-step guide on how to use point prompts for segmentation within the Endoscapes2023 dataset. Additionally, it showcases the process of generating point prompts directly from ground truth masks.
+## Evaluation
+The folder `Evaluation` contains different metric for different datasets. See `utils.py` for details.
+
+|    Dataset    |          Metric           |
+| :-----------: | :-----------------------: |
+|  EndoVis'18   | Dice score, IOU per class |
+|  CholecSeg8k  | Dice score, IOU per class |
+| Endoscape2023 |      Ap50, MAP 50-95      |
+|     Cadis     |                           |
+|   EndoNeRF    |      Dice, IOU, MAE       |
+|  EndoVis’17   |      Dice, IOU, MAE       |
+|  SurgToolLoc  |      Dice, IOU, MAE,      |
+
 
 ## Potential Issues 
 
