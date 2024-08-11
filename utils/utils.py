@@ -3,10 +3,14 @@ import os
 
 
 def extract_frame_number(filename):
-	match = re.search(r'frame_(\d+)_', filename)
-	if match:
-		return int(match.group(1))
-	return 0  #
+	# Find all sequences of digits in the filename
+	matches = re.findall(r'\d+', filename)
+
+	if matches:
+		# Return the last sequence of digits as an integer
+		return int(matches[-1])
+
+	return 0  # Default value if no number is found
 
 
 def find_frames(frame_dir):
@@ -19,4 +23,7 @@ def find_frames(frame_dir):
 
 	# frame_names.sort(key=lambda p: int(os.path.splitext(p)[0]))
 	frame_names.sort(key=extract_frame_number)
+
+	print(f"------------{frame_names[0]}")
+
 	return frame_names

@@ -99,6 +99,20 @@ Assuming frames are in `examples/video_mask/frames`:
 python main_point.py --video_dir examples/video_mask/frames  --sam2_checkpoint checkpoints/sam2_hiera_tiny.pt --output_dir test_mask_output --gt_path examples/video_mask/mask_gt.json --gt_type mask
 ```
 
+### Pixel Masks as ground truths
+
+Assuming frames and pixel-mask gt are in `examples/video_pixel`:
+
+This is for watershed pixel mask
+```bash
+python main_point.py --video_dir examples/video_pixel  --sam2_checkpoint checkpoints/sam2_hiera_tiny.pt --output_dir test_watermask_pixel_output --gt_path examples/video_pixel/frame_561_endo_watershed_mask.png --gt_type pixel_mask
+```
+This is for colored pixel mask
+```bash
+python main_point.py --video_dir examples/video_pixel  --sam2_checkpoint checkpoints/sam2_hiera_tiny.pt --output_dir test_color_pixel_output --gt_path examples/video_pixel/frame_561_endo_color_mask.png --gt_type pixel_mask
+```
+
+
 ## Potential Issues 
 
 - First frame may lack ground truths
