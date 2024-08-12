@@ -1,17 +1,17 @@
 import re
 import os
 
-
 def extract_frame_number(filename):
-	# Find all sequences of digits in the filename
-	matches = re.findall(r'\d+', filename)
+    # Find all sequences of digits in the filename
+    matches = re.findall(r'\d+', filename)
 
-	if matches:
-		# Return the last sequence of digits as an integer
-		return int(matches[-1])
+    if matches:
+        # Combine all sequences of digits into a single string
+        combined_digits = ''.join(matches)
+        # Convert the combined string to an integer
+        return int(combined_digits)
 
-	return 0  # Default value if no number is found
-
+    return 0  # Default value if no number is found
 
 def find_frames(frame_dir):
 	valid_extensions = [".jpg", ".jpeg", ".png"]
@@ -24,6 +24,6 @@ def find_frames(frame_dir):
 	# frame_names.sort(key=lambda p: int(os.path.splitext(p)[0]))
 	frame_names.sort(key=extract_frame_number)
 
-	print(f"------------{frame_names[0]}")
+	# print(f"------------{frame_names[0]}")
 
 	return frame_names
