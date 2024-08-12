@@ -100,11 +100,13 @@ def main(args):
 
 	# Generate color map for objects
 	object_colors = get_color_map(len(sampled_points))
-
 	gif_frames = []
 	for frame_idx, frame_name in enumerate(frame_names):
 		original_img = Image.open(os.path.join(args.video_dir, frame_name))
-		contour_image = np.array(original_img)
+		original_array = np.array(original_img)
+
+		# Create an overlay for filled contours
+		overlay = np.zeros_like(original_array)
 
 		# Save pixel masks and create COCO annotations
 		for out_obj_id, out_mask in video_segments[frame_idx].items():
@@ -138,10 +140,19 @@ def main(args):
 			# Create visualization
 			color = [int(c * 255) for c in object_colors[out_obj_id - 1]]
 			contours, _ = cv2.findContours(out_mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-			cv2.drawContours(contour_image, contours, -1, color, 2)
+
+			# Fill contours on the overlay
+			cv2.fillPoly(overlay, contours, color)
+
+		# Blend the filled contours with the original image
+		alpha = 0.5  # Adjust this value to change the transparency of the filled areas
+		result_array = cv2.addWeighted(original_array, 1 - alpha, overlay, alpha, 0)
 
 		# Save visualization
-		result = Image.fromarray(contour_image)
+		result = Image.fromarray(result_array)
+
+		# Add to gif_frames if needed
+		gif_frames.append(result)
 
 		if frame_idx % args.vis_frame_stride == 0:
 			gif_frames.append(result)

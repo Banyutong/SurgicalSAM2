@@ -100,34 +100,42 @@ def visualize_first_frame_mask(image, masks, sampled_points, output_path):
 	elif isinstance(image, Image.Image):
 		image = np.array(image)
 
-	# Create a copy of the image for drawing contours
-	contour_image = image.copy()
+	# Create a copy of the image for drawing filled contours
+	filled_image = image.copy()
 
 	# Generate a color map for the masks
 	colors = get_color_map(len(masks))
 
-	# Loop over each mask and draw the contour
+	# Create an overlay for filled contours
+	overlay = np.zeros_like(filled_image)
+
+	# Loop over each mask and fill the contour
 	for i, (mask, points) in enumerate(zip(masks, sampled_points)):
 		color = [int(c * 255) for c in colors[i]]
 
 		# Find contours of the mask
 		contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-		# Draw contours on the image
-		cv2.drawContours(contour_image, contours, -1, color, 2)
+		# Fill contours on the overlay
+		cv2.fillPoly(overlay, contours, color)
 
 		# Plot sampled points
 		for point in points:
-			cv2.circle(contour_image, tuple(map(int, point)), 5, color, -1)
+			cv2.circle(filled_image, tuple(map(int, point)), 5, color, -1)
 
-	# Visualize the image with the contours
+	# Blend the filled contours with the original image
+	alpha = 0.3  # Adjust this value to change the transparency of the filled areas
+	filled_image = cv2.addWeighted(filled_image, 1 - alpha, overlay, alpha, 0)
+
+	# Visualize the image with the filled contours
 	plt.figure(figsize=(10, 10))
-	plt.imshow(contour_image)
-	plt.title("First Frame with Mask Contours and Sampled Points")
+	plt.imshow(filled_image)
+	plt.title("First Frame with Filled Mask Contours and Sampled Points")
 	plt.axis('off')
 	plt.tight_layout()
 	plt.savefig(output_path, bbox_inches='tight', pad_inches=0)
 	plt.close()
+
 	print(f"First frame visualization saved to {output_path}")
 
 
