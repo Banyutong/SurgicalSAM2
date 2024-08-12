@@ -5,11 +5,11 @@ import numpy as np
 from PIL import Image
 import json
 from sam2.build_sam import build_sam2_video_predictor
-from utils.mask_helpers import rle_to_binary_mask, get_model_cfg, mask_to_rle, mask_to_bbox
+from utils.mask_helpers import rle_to_binary_mask, get_model_cfg
 from utils.visualization import visualize_first_frame_comprehensive, get_color_map
 from utils.utils import find_frames
 from utils.groundtruth2point import sample_points_from_bboxes, sample_points_from_masks, sample_points_from_pixel_mask
-import cv2
+from utils.output_utils import save_pixel_masks, create_coco_annotations, save_visualizations, save_coco_json
 
 def parse_args():
     parser = argparse.ArgumentParser(description="SAM2 Video Segmentation")
@@ -23,26 +23,13 @@ def parse_args():
     parser.add_argument('--sample_points', type=int, default=1, help='Number of points to sample for each object')
     return parser.parse_args()
 
-def main(args):
+def setup_environment():
     torch.autocast(device_type="cuda", dtype=torch.bfloat16).__enter__()
-
     if torch.cuda.get_device_properties(0).major >= 8:
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
 
-    frame_names = find_frames(args.video_dir)
-    model_cfg = get_model_cfg(os.path.basename(args.sam2_checkpoint))
-    predictor = build_sam2_video_predictor(model_cfg, args.sam2_checkpoint)
-    inference_state = predictor.init_state(video_path=args.video_dir)
-
-    prompts = {}
-    ann_frame_idx = 0  # Assuming we're using the first frame for annotation
-
-    first_frame_path = os.path.join(args.video_dir, frame_names[0])
-    first_frame = np.array(Image.open(first_frame_path))
-    os.makedirs(args.output_dir, exist_ok=True)
-    combined_output_path = os.path.join(args.output_dir, 'first_frame_visualization.png')
-
+def process_ground_truth(args):
     if args.gt_type == 'pixel_mask':
         gt_mask = np.array(Image.open(args.gt_path))
         sampled_points = sample_points_from_pixel_mask(gt_mask, num_points=args.sample_points, include_center=True)
@@ -51,16 +38,24 @@ def main(args):
         with open(args.gt_path, 'r') as f:
             gt_data = json.load(f)
 
-    # Process ground truth data
-    if args.gt_type == 'bbox':
-        gt_data = [ann['bbox'] for ann in gt_data['annotations']]
-        sampled_points = sample_points_from_bboxes(gt_data, num_points=args.sample_points, include_center=True)
-    elif args.gt_type == 'mask':
-        masks = [ann['segmentation'] for ann in gt_data['annotations']]
-        gt_data = [rle_to_binary_mask(mask) for mask in masks]
-        sampled_points = sample_points_from_masks(gt_data, num_points=args.sample_points, include_center=True)
+        if args.gt_type == 'bbox':
+            gt_data = [ann['bbox'] for ann in gt_data['annotations']]
+            sampled_points = sample_points_from_bboxes(gt_data, num_points=args.sample_points, include_center=True)
+        elif args.gt_type == 'mask':
+            masks = [ann['segmentation'] for ann in gt_data['annotations']]
+            gt_data = [rle_to_binary_mask(mask) for mask in masks]
+            sampled_points = sample_points_from_masks(gt_data, num_points=args.sample_points, include_center=True)
 
-    # Add points for each object
+    return gt_data, sampled_points
+
+def initialize_predictor(args, frame_names, sampled_points):
+    model_cfg = get_model_cfg(os.path.basename(args.sam2_checkpoint))
+    predictor = build_sam2_video_predictor(model_cfg, args.sam2_checkpoint)
+    inference_state = predictor.init_state(video_path=args.video_dir)
+
+    prompts = {}
+    ann_frame_idx = 0  # Assuming we're using the first frame for annotation
+
     for obj_id, points in enumerate(sampled_points, start=1):
         labels = np.ones(args.sample_points, dtype=np.int32)  # All points are positive
         prompts[obj_id] = points, labels
@@ -72,6 +67,15 @@ def main(args):
             labels=labels,
         )
 
+    return predictor, inference_state
+
+def main(args):
+    setup_environment()
+
+    frame_names = find_frames(args.video_dir)
+    gt_data, sampled_points = process_ground_truth(args)
+    predictor, inference_state = initialize_predictor(args, frame_names, sampled_points)
+
     video_segments = {}
     for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(inference_state):
         video_segments[out_frame_idx] = {
@@ -79,24 +83,16 @@ def main(args):
             for i, out_obj_id in enumerate(out_obj_ids)
         }
 
-    # Prepare output directories
-    os.makedirs(os.path.join(args.output_dir, 'pixel_masks'), exist_ok=True)
-    os.makedirs(os.path.join(args.output_dir, 'visualizations'), exist_ok=True)
-
-    # Prepare COCO format data
-    coco_annotations = []
-    coco_images = []
-    annotation_id = 1
-
-    # Generate color map for objects
-    object_colors = get_color_map(len(sampled_points))
-    gif_frames = []
+    os.makedirs(args.output_dir, exist_ok=True)
 
     # Visualize first frame
+    first_frame_path = os.path.join(args.video_dir, frame_names[0])
+    first_frame = np.array(Image.open(first_frame_path))
     first_frame_predictions = np.zeros_like(first_frame[:,:,0])
     for obj_id, mask in video_segments[0].items():
         first_frame_predictions[mask] = obj_id
 
+    combined_output_path = os.path.join(args.output_dir, 'first_frame_visualization.png')
     visualize_first_frame_comprehensive(
         first_frame,
         gt_data,
@@ -106,80 +102,12 @@ def main(args):
         args.gt_type
     )
 
-    for frame_idx, frame_name in enumerate(frame_names):
-        original_img = Image.open(os.path.join(args.video_dir, frame_name))
-        original_array = np.array(original_img)
-
-        # Create an overlay for filled contours
-        overlay = np.zeros_like(original_array)
-
-        # Save pixel masks and create COCO annotations
-        for out_obj_id, out_mask in video_segments[frame_idx].items():
-            # Ensure mask is 2D
-            if out_mask.ndim == 3:
-                out_mask = out_mask.squeeze()
-            if out_mask.ndim != 2:
-                print(f"Unexpected mask shape for frame {frame_idx}, object {out_obj_id}: {out_mask.shape}")
-                continue
-
-            # Save pixel mask
-            mask_img = Image.fromarray((out_mask * 255).astype(np.uint8))
-            mask_img.save(os.path.join(args.output_dir, 'pixel_masks', f'frame_{frame_idx:04d}_obj_{out_obj_id}.png'))
-
-            # Create COCO annotation
-            rle = mask_to_rle(out_mask)
-            bbox = mask_to_bbox(out_mask)
-            if bbox is not None:
-                coco_ann = {
-                    "id": annotation_id,
-                    "image_id": frame_idx,
-                    "category_id": out_obj_id,
-                    "segmentation": rle,
-                    "area": int(np.sum(out_mask)),
-                    "bbox": bbox,
-                    "iscrowd": 0,
-                }
-                coco_annotations.append(coco_ann)
-                annotation_id += 1
-
-            # Create visualization
-            color = [int(c * 255) for c in object_colors[out_obj_id - 1]]
-            contours, _ = cv2.findContours(out_mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-            # Fill contours on the overlay
-            cv2.fillPoly(overlay, contours, color)
-
-        # Blend the filled contours with the original image
-        alpha = 0.5  # Adjust this value to change the transparency of the filled areas
-        result_array = cv2.addWeighted(original_array, 1 - alpha, overlay, alpha, 0)
-
-        # Save visualization
-        result = Image.fromarray(result_array)
-
-        # Add to gif_frames if needed
-        if frame_idx % args.vis_frame_stride == 0:
-            gif_frames.append(result)
-
-        # Add image info to COCO format
-        coco_images.append({
-            "id": frame_idx,
-            "file_name": frame_name,
-            "height": original_img.height,
-            "width": original_img.width
-        })
-
-    # Save GIF
-    gif_frames[0].save(os.path.join(args.output_dir, 'visualization.gif'), save_all=True, append_images=gif_frames[1:],
-                       duration=500, loop=0)
-
-    # Save COCO format JSON
-    coco_data = {
-        "images": coco_images,
-        "annotations": coco_annotations,
-        "categories": [{"id": i, "name": f"Object {i}"} for i in range(1, len(sampled_points) + 1)]
-    }
-    with open(os.path.join(args.output_dir, 'coco_annotations.json'), 'w') as f:
-        json.dump(coco_data, f)
+    # Save outputs
+    save_pixel_masks(video_segments, args.output_dir)
+    coco_annotations, coco_images = create_coco_annotations(video_segments, frame_names)
+    object_colors = get_color_map(len(sampled_points))
+    save_visualizations(video_segments, frame_names, args.video_dir, args.output_dir, object_colors, args.vis_frame_stride)
+    save_coco_json(coco_annotations, coco_images, len(sampled_points), args.output_dir)
 
     print(f"Results saved in {args.output_dir}")
 
