@@ -85,13 +85,6 @@ def visualize_first_frame_bbx(image, bboxes, sampled_points, output_path):
 	print(f"First frame visualization (bboxes and points) saved to {output_path}")
 
 
-# If you're using this color map elsewhere in your code, make sure to use ensure_color_range there as well
-def get_color_map_255(num_classes):
-	"""Generate a color map for visualizing different objects, with values in 0-255 range."""
-	colors = get_color_map(num_classes)
-	return [(int(r * 255), int(g * 255), int(b * 255)) for r, g, b in colors]
-
-
 def visualize_first_frame_mask(image, masks, sampled_points, output_path):
 	# Convert image to RGB if it's not already
 	if isinstance(image, str):
@@ -239,3 +232,79 @@ def create_mask_overlay(image, pixel_mask):
 	# Create overlay
 	overlay = image_array * (1 - colored_mask[:, :, 3:]) + (colored_mask[:, :, :3] * 255 * colored_mask[:, :, 3:])
 	return Image.fromarray(overlay.astype(np.uint8))
+
+
+def get_color_map_255(num_classes):
+	"""Generate a color map for visualizing different objects, with values in 0-255 range."""
+	colors = []
+	for i in range(num_classes):
+		hue = i / num_classes
+		rgb = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
+		colors.append(tuple(int(c * 255) for c in rgb))
+	return colors
+
+
+def visualize_first_frame_comprehensive(image, gt_data, sampled_points, predictions, output_path, gt_type):
+	"""
+	Visualize the first frame with original image, ground truth (bboxes, masks, or pixel_mask) with points, and predictions.
+
+	Args:
+	image (np.ndarray): The original image.
+	gt_data (list or np.ndarray): List of ground truth data (bboxes or masks) or a single pixel_mask array.
+	sampled_points (list): List of sampled points for each object.
+	predictions (np.ndarray): Predicted segmentation mask.
+	output_path (str): Path to save the visualization.
+	gt_type (str): Type of ground truth data ('bbox', 'mask', or 'pixel_mask').
+	"""
+	fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(30, 10))
+
+	# 1. Original Image
+	ax1.imshow(image)
+	ax1.set_title("Original Image")
+	ax1.axis('off')
+
+	# 2. Image with ground truth and point prompts
+	if gt_type == 'pixel_mask':
+		if gt_data.ndim == 2:
+			ax2.imshow(gt_data, cmap='tab20')
+		else:
+			ax2.imshow(gt_data)
+
+		# Plot points
+		for obj_points in sampled_points:
+			obj_points = np.array(obj_points)
+			ax2.scatter(obj_points[:, 1], obj_points[:, 0], c='red', s=30, marker='x')
+	else:
+		ax2.imshow(image)
+		colors = get_color_map_255(len(gt_data))
+		for i, (gt, points) in enumerate(zip(gt_data, sampled_points)):
+			color = tuple(c / 255 for c in colors[i])  # Normalize color to 0-1 range for matplotlib
+
+			if gt_type == 'bbox':
+				# Draw bounding box
+				x, y, w, h = gt
+				rect = plt.Rectangle((x, y), w, h, fill=False, edgecolor=color, linewidth=2)
+				ax2.add_patch(rect)
+			elif gt_type == 'mask':
+				# Draw filled mask contour
+				contours, _ = cv2.findContours(gt.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+				for contour in contours:
+					ax2.add_patch(plt.Polygon(contour.reshape(-1, 2), fill=True, alpha=0.4, color=color))
+
+			# Plot sampled points
+			points = np.array(points)
+			ax2.scatter(points[:, 0], points[:, 1], c=[color], s=50, marker='*')
+
+	ax2.set_title(f"Ground Truth ({gt_type.capitalize()}) and Point Prompts")
+	ax2.axis('off')
+
+	# 3. Image with predictions (filled masks)
+	ax3.imshow(predictions, cmap='tab20')
+	ax3.set_title("Predicted Segmentation")
+	ax3.axis('off')
+
+	plt.tight_layout()
+	plt.savefig(output_path, bbox_inches='tight', pad_inches=0.1)
+	plt.close()
+
+	print(f"Comprehensive first frame visualization saved to {output_path}")
