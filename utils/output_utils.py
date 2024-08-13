@@ -57,31 +57,40 @@ def create_coco_annotations(video_segments, frame_names):
 def save_visualizations(video_segments, frame_names, video_dir, output_dir, object_colors, vis_frame_stride):
     os.makedirs(os.path.join(output_dir, 'visualizations'), exist_ok=True)
     gif_frames = []
-
     for frame_idx, frame_name in enumerate(frame_names):
         original_img = Image.open(os.path.join(video_dir, frame_name))
         original_array = np.array(original_img)
         overlay = np.zeros_like(original_array)
-
-        for out_obj_id, out_mask in video_segments[frame_idx].items():
-            if out_mask.ndim == 3:
-                out_mask = out_mask.squeeze()
-            if out_mask.ndim != 2:
-                continue
-
-            color = [int(c * 255) for c in object_colors[out_obj_id - 1]]
-            contours, _ = cv2.findContours(out_mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            cv2.fillPoly(overlay, contours, color)
-
+        
+        if frame_idx in video_segments:
+            for out_obj_id, out_mask in video_segments[frame_idx].items():
+                if out_mask.ndim == 3:
+                    out_mask = out_mask.squeeze()
+                if out_mask.ndim != 2:
+                    continue
+                
+                color = np.array([int(c * 255) for c in object_colors[out_obj_id - 1]])
+                color = np.clip(color, 0, 255).astype(np.uint8)  # Ensure color values are within 0-255 range
+                
+                contours, _ = cv2.findContours(out_mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                cv2.fillPoly(overlay, contours, color.tolist())
+        
         alpha = 0.5
         result_array = cv2.addWeighted(original_array, 1 - alpha, overlay, alpha, 0)
         result = Image.fromarray(result_array)
-
+        
         if frame_idx % vis_frame_stride == 0:
             gif_frames.append(result)
-
-    gif_frames[0].save(os.path.join(output_dir, 'visualization.gif'), save_all=True, append_images=gif_frames[1:],
-                       duration=500, loop=0)
+            # Also save individual frame
+            result.save(os.path.join(output_dir, 'visualizations', f'vis_{frame_name}'))
+    
+    # Save GIF
+    if gif_frames:
+        gif_frames[0].save(os.path.join(output_dir, 'visualization.gif'), 
+                           save_all=True, 
+                           append_images=gif_frames[1:],
+                           duration=500, 
+                           loop=0)
 
 def save_coco_json(coco_annotations, coco_images, num_objects, output_dir):
     coco_data = {

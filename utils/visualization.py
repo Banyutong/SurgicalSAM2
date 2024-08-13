@@ -270,11 +270,11 @@ def visualize_first_frame_comprehensive(image, gt_data, sampled_points, predicti
             ax2.imshow(gt_data)
 
         if sampled_points is not None:
-
-            # Plot points
-            for obj_points in sampled_points:
-                obj_points = np.array(obj_points)
-                ax2.scatter(obj_points[:, 1], obj_points[:, 0], c='red', s=200, marker='x')
+            colors = get_color_map(len(sampled_points))
+            for i, points in enumerate(sampled_points):
+                color = colors[i]
+                points = np.array(points)
+                ax2.scatter(points[:, 0], points[:, 1], c=[color], s=200, marker='*', edgecolor='white', linewidth=1.25)
     else:
         ax2.imshow(image)
         colors = get_color_map_255(len(gt_data))
