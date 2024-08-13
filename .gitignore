@@ -5,6 +5,5 @@ __pycache__/
 .venv
 *.egg*
 build/*
-_C.*
 outputs/*
 checkpoints/*.pt

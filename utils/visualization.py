@@ -263,11 +263,11 @@ def visualize_first_frame_comprehensive(image, gt_data, sampled_points, predicti
     ax1.axis('off')
 
     # 2. Image with ground truth and point prompts
-    if gt_type == 'pixel_mask':
-        if gt_data.ndim == 2:
-            ax2.imshow(gt_data, cmap='tab20')
+    if gt_type == 'pixel_mask': # assume for pixel_mask, the gt is always the first frame with index 0
+        if gt_data[0].ndim == 2:
+            ax2.imshow(gt_data[0], cmap='tab20')
         else:
-            ax2.imshow(gt_data)
+            ax2.imshow(gt_data[0])
 
         if sampled_points is not None:
             colors = get_color_map(len(sampled_points))
@@ -325,7 +325,7 @@ def visualize_all_frames(video_segments, frame_names, video_dir, output_dir, gt_
             prediction[mask] = obj_id
 
         if gt_type == 'pixel_mask':
-            current_gt = gt_data if isinstance(gt_data, np.ndarray) else np.zeros_like(current_frame[:,:,0])
+            current_gt = gt_data[frame_idx] if frame_idx < len(gt_data) else np.zeros_like(current_frame[:, :, 0])
         elif gt_type == 'mask':
             current_gt = gt_data[frame_idx] if frame_idx < len(gt_data) else np.zeros_like(current_frame[:,:,0])
         else:  # bbox

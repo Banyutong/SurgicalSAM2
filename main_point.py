@@ -7,7 +7,7 @@ import json
 from sam2.build_sam import build_sam2_video_predictor
 from utils.mask_helpers import rle_to_binary_mask, get_model_cfg
 from utils.visualization import visualize_first_frame_comprehensive, get_color_map, visualize_all_frames
-from utils.utils import find_frames
+from utils.utils import find_frames, process_gt_pixel_mask
 from utils.groundtruth2point import sample_points_from_bboxes, sample_points_from_masks, sample_points_from_pixel_mask
 from utils.output_utils import save_pixel_masks, create_coco_annotations, save_visualizations, save_coco_json
 
@@ -42,9 +42,10 @@ def extract_image_info(gt_data, image_filename):
 
 def process_ground_truth(args, frame_names):
     if args.gt_type == 'pixel_mask':
+        gt_data = process_gt_pixel_mask(frame_names, args.gt_path)
         gt_mask = np.array(Image.open(args.gt_path))
         sampled_points = sample_points_from_pixel_mask(gt_mask, num_points=args.sample_points, include_center=True)
-        return gt_mask, sampled_points, 0  # Assuming the first frame is always valid for pixel_mask
+        return gt_data, sampled_points, 0  # Assuming the first frame is always valid for pixel_mask
 
     with open(args.gt_path, 'r') as f:
         gt_data = json.load(f)
