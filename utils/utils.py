@@ -15,6 +15,7 @@ def extract_frame_number(filename):
 
     return 0  # Default value if no number is found
 
+
 def find_frames(frame_dir):
 	valid_extensions = [".jpg", ".jpeg", ".png"]
 	frame_names = [

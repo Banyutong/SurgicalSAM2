@@ -34,7 +34,7 @@ def setup_environment():
 def extract_image_info(gt_data, image_filename):
     video_id, frame_id = image_filename.split('.')[0].split('_')
     image_id = int(f"{video_id}0{frame_id}")
-    
+
     for img in gt_data.get('images', []):
         if img['id'] == image_id:
             return img['id']
@@ -50,7 +50,7 @@ def process_ground_truth(args, frame_names):
         gt_data = json.load(f)
 
     coco = COCO(args.gt_path)
-    
+
     gt_data_filtered = []
     sampled_points = None
     first_valid_frame_index = None
@@ -74,7 +74,7 @@ def process_ground_truth(args, frame_names):
                 if sampled_points is None:
                     sampled_points = sample_points_from_masks(frame_gt_data, num_points=args.sample_points, include_center=True)
                     first_valid_frame_index = i
-            
+
             if sampled_points is not None:
                 break  # Exit the loop after processing the first valid frame
 
@@ -113,11 +113,11 @@ def main(args):
         print(f"Using ground truth from frame index: {first_valid_frame_index}")
     except ValueError as e:
         print(f"Error: {e}")
-        return 
-    
+        return
+
     prompt_frame = first_valid_frame_index
     prompt_points = sampled_points
-    
+
     predictor, inference_state = initialize_predictor(args, frame_names, prompt_points, prompt_frame)
 
     video_segments = {}
