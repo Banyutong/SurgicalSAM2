@@ -91,8 +91,8 @@ def sample_points_from_masks(masks, num_points=3, include_center=True):
 
 
 def sample_points_from_pixel_mask(mask, num_points=1, include_center=True):
-	"""
-    Sample points from a pixel mask (color or grayscale).
+    """
+    Sample points from a pixel mask (color or grayscale), returning points in (x, y) format.
 
     Args:
     mask (np.ndarray): A 2D or 3D numpy array representing the mask.
@@ -100,39 +100,39 @@ def sample_points_from_pixel_mask(mask, num_points=1, include_center=True):
     include_center (bool): Whether to include the center point of each object.
 
     Returns:
-    list: List of lists containing sampled points for each object.
+    list: List of lists containing sampled points for each object in (x, y) format.
     """
-	if mask.ndim == 2:
-		# Grayscale mask
-		unique_labels = np.unique(mask)[1:]  # Exclude background (assumed to be 0)
-	elif mask.ndim == 3:
-		# Color mask
-		unique_labels = np.unique(mask.reshape(-1, mask.shape[2]), axis=0)[1:]  # Exclude background
-	else:
-		raise ValueError("Invalid mask shape. Expected 2D or 3D array.")
+    if mask.ndim == 2:
+        # Grayscale mask
+        unique_labels = np.unique(mask)[1:]  # Exclude background (assumed to be 0)
+    elif mask.ndim == 3:
+        # Color mask
+        unique_labels = np.unique(mask.reshape(-1, mask.shape[2]), axis=0)[1:]  # Exclude background
+    else:
+        raise ValueError("Invalid mask shape. Expected 2D or 3D array.")
 
-	sampled_points = []
+    sampled_points = []
 
-	for label in unique_labels:
-		if mask.ndim == 2:
-			object_mask = (mask == label)
-		else:
-			object_mask = np.all(mask == label, axis=2)
+    for label in unique_labels:
+        if mask.ndim == 2:
+            object_mask = (mask == label)
+        else:
+            object_mask = np.all(mask == label, axis=2)
 
-		points = []
-		if include_center:
-			center = np.mean(np.argwhere(object_mask), axis=0)
-			points.append(center.astype(int))
+        points = []
+        if include_center:
+            center = np.mean(np.argwhere(object_mask), axis=0)
+            points.append(center[::-1].astype(int))  # Reverse order to (x, y)
 
-		remaining_points = num_points - len(points)
-		if remaining_points > 0:
-			object_coords = np.argwhere(object_mask)
-			sampled_indices = np.random.choice(len(object_coords), remaining_points, replace=False)
-			points.extend(object_coords[sampled_indices])
+        remaining_points = num_points - len(points)
+        if remaining_points > 0:
+            object_coords = np.argwhere(object_mask)
+            sampled_indices = np.random.choice(len(object_coords), remaining_points, replace=False)
+            points.extend(object_coords[sampled_indices][:, ::-1])  # Reverse order to (x, y)
 
-		sampled_points.append(points)
+        sampled_points.append(points)
 
-	return sampled_points
+    return sampled_points
 
 
 if __name__ == "__main__":
