@@ -243,13 +243,13 @@ def get_color_map_255(num_classes):
         colors.append(tuple(int(c * 255) for c in rgb))
     return colors
 
-def visualize_first_frame_comprehensive(image, gt_data, sampled_points, predictions, output_path, gt_type):
+def visualize_first_frame_comprehensive(image, first_valid_gt, sampled_points, predictions, output_path, gt_type):
     """
     Visualize the first frame with original image, ground truth (bboxes, masks, or pixel_mask) with points, and predictions.
 
     Args:
     image (np.ndarray): The original image.
-    gt_data (list or np.ndarray): List of ground truth data (bboxes or masks) or a single pixel_mask array.
+    first_valid_gt (list or np.ndarray): List of ground truth data (bboxes or masks) or a single pixel_mask array.
     sampled_points (list): List of sampled points for each object.
     predictions (np.ndarray): Predicted segmentation mask.
     output_path (str): Path to save the visualization.
@@ -264,10 +264,10 @@ def visualize_first_frame_comprehensive(image, gt_data, sampled_points, predicti
 
     # 2. Image with ground truth and point prompts
     if gt_type == 'pixel_mask': # assume for pixel_mask, the gt is always the first frame with index 0
-        if gt_data[0].ndim == 2:
-            ax2.imshow(gt_data[0], cmap='tab20')
+        if first_valid_gt.ndim == 2:
+            ax2.imshow(first_valid_gt, cmap='tab20')
         else:
-            ax2.imshow(gt_data[0])
+            ax2.imshow(first_valid_gt)
 
         if sampled_points is not None:
             colors = get_color_map(len(sampled_points))
@@ -277,8 +277,8 @@ def visualize_first_frame_comprehensive(image, gt_data, sampled_points, predicti
                 ax2.scatter(points[:, 0], points[:, 1], c=[color], s=200, marker='*', edgecolor='white', linewidth=1.25)
     else:
         ax2.imshow(image)
-        colors = get_color_map_255(len(gt_data))
-        for i, (gt, points) in enumerate(zip(gt_data, sampled_points)):
+        colors = get_color_map_255(len(first_valid_gt))
+        for i, (gt, points) in enumerate(zip(first_valid_gt, sampled_points)):
             color = tuple(c / 255 for c in colors[i])  # Normalize color to 0-1 range for matplotlib
 
             if gt_type == 'bbox':
@@ -345,31 +345,18 @@ def visualize_all_frames(video_segments, frame_names, video_dir, output_dir, gt_
 
     print(f"All frame visualizations saved to {vis_dir}")
 
+
 def visualize_frame(prompt_frame, prompt_points, current_frame, ground_truth, prediction, output_path, gt_type='mask'):
     fig, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, figsize=(40, 10))
 
     # Prompt frame with plotted points
     ax1.imshow(prompt_frame)
     ax1.set_title("Prompt Frame with Points")
-
     colors = get_color_map(len(prompt_points))
     for i, points in enumerate(prompt_points):
         color = colors[i]
         points = np.array(points)
         ax1.scatter(points[:, 0], points[:, 1], c=[color], s=200, marker='*', edgecolor='white', linewidth=1.25)
-    # if gt_type == 'pixel_mask':
-    #     colors = get_color_map(len(prompt_points))
-    #     for i, points in enumerate(prompt_points):
-    #         color = colors[i]
-    #         points = np.array(points)
-    #         ax1.scatter(points[:, 1], points[:, 0], c=[color], s=200, marker='*', edgecolor='white', linewidth=1.25)
-
-    # else:
-    #     colors = get_color_map(len(prompt_points))
-    #     for i, points in enumerate(prompt_points):
-    #         color = colors[i]
-    #         points = np.array(points)
-    #         ax1.scatter(points[:, 0], points[:, 1], c=[color], s=200, marker='*', edgecolor='white', linewidth=1.25)
     ax1.axis('off')
 
     # Current frame
@@ -378,7 +365,20 @@ def visualize_frame(prompt_frame, prompt_points, current_frame, ground_truth, pr
     ax2.axis('off')
 
     # Ground truth
-    if gt_type == 'mask' or gt_type == 'pixel_mask':
+
+
+    if ground_truth is None or len(ground_truth) == 0:
+        ax3.imshow(current_frame)
+        # Check if ground_truth is an empty list
+        ax3.text(0.5, 0.5, 'No GT', ha='center', va='center', transform=ax3.transAxes, fontsize=20, color='white',
+                 bbox=dict(facecolor='black', alpha=0.5))
+    elif gt_type == 'mask' :
+        # Use current_frame as background
+        ax3.imshow(current_frame)
+        for mask in ground_truth:
+            ax3.imshow(mask, cmap='tab20', alpha=0.7)
+    elif gt_type == 'pixel_mask':
+
         ax3.imshow(ground_truth, cmap='tab20')
     elif gt_type == 'bbox':
         ax3.imshow(current_frame)

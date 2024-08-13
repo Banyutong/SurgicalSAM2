@@ -88,7 +88,7 @@ ffmpeg -i examples/video3/video3.mp4 -q:v 2 -start_number 0 examples/video3/fram
 Generate masks:
 
 ```bash
-python main_point.py --video_dir examples/video3/frames --sam2_checkpoint checkpoints/sam2_hiera_tiny.pt --output_dir test_bbx_output --gt_path examples/video3/bbox_video3.json --gt_type bbox
+python main_point.py --video_dir examples/video_mask/frames --sam2_checkpoint checkpoints/sam2_hiera_tiny.pt --output_dir test_bbx_output --gt_path examples/video_mask/annotation_coco_vid.json --gt_type bbox
 ```
 
 ### Masks as ground truths
@@ -96,7 +96,7 @@ python main_point.py --video_dir examples/video3/frames --sam2_checkpoint checkp
 Assuming frames are in `examples/video_mask/frames`:
 
 ```bash
-python main_point.py --video_dir examples/video_mask/frames  --sam2_checkpoint checkpoints/sam2_hiera_tiny.pt --output_dir test_mask_output --gt_path examples/video_mask/mask_gt.json --gt_type mask
+python main_point.py --video_dir examples/video_mask/frames  --sam2_checkpoint checkpoints/sam2_hiera_tiny.pt --output_dir test_mask_output --gt_path examples/video_mask/annotation_coco_vid.json --gt_type mask
 ```
 
 ### Pixel Masks as ground truths
@@ -143,8 +143,8 @@ The folder `Evaluation` contains different metric for different datasets. See `u
 
 
 ## Add Todo
-- [ ] support to process a single video with a GT json file that contains complete annotations
-- [ ] Implement search for first frame with valid GT
+- [x] support to process a single video with a GT json file that contains complete annotations
+- [x] Implement search for first frame with valid GT
 - [ ] Disentangle contents in main_point.py
 - [ ] Develop main_mask.py for direct mask input processing
 - [ ] Develop main_bbx.py for direct bounding box input handling

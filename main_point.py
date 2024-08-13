@@ -58,46 +58,52 @@ def process_ground_truth(args, frame_names):
 
     for i, frame_name in enumerate(frame_names):
         image_id = extract_image_info(gt_data, frame_name)
-        if image_id is not None:
-            ann_ids = coco.getAnnIds(imgIds=image_id)
-            anns = coco.loadAnns(ann_ids)
 
-            if args.gt_type == 'bbox':
-                frame_gt_data = [ann['bbox'] for ann in anns]
-                gt_data_filtered.extend(frame_gt_data)
-                if sampled_points is None:
-                    sampled_points = sample_points_from_bboxes(frame_gt_data, num_points=args.sample_points, include_center=True)
-                    first_valid_frame_index = i
-            elif args.gt_type == 'mask':
-                masks = [ann['segmentation'] for ann in anns]
-                frame_gt_data = [rle_to_binary_mask(mask) for mask in masks]
-                gt_data_filtered.extend(frame_gt_data)
-                if sampled_points is None:
-                    sampled_points = sample_points_from_masks(frame_gt_data, num_points=args.sample_points, include_center=True)
-                    first_valid_frame_index = i
+        if image_id is None or not coco.getAnnIds(imgIds=image_id):
+            print(f"Warning: No corresponding gt found for {frame_name}")
+            gt_data_filtered.append([])  # Empty list for both bbox and mask
+            continue
 
-            if sampled_points is not None:
-                break  # Exit the loop after processing the first valid frame
+        print(f"Ground truth found for {frame_name}")
 
-    if sampled_points is None:
-        raise ValueError("No frames with ground truth data found.")
+        ann_ids = coco.getAnnIds(imgIds=image_id)
+        anns = coco.loadAnns(ann_ids)
+
+        if args.gt_type == 'bbox':
+            frame_gt_data = [ann['bbox'] for ann in anns]
+            sample_func = sample_points_from_bboxes
+        elif args.gt_type == 'mask':
+            masks = [ann['segmentation'] for ann in anns]
+            frame_gt_data = [rle_to_binary_mask(mask) for mask in masks]
+            sample_func = sample_points_from_masks
+        else:
+            raise ValueError(f"Unsupported gt_type: {args.gt_type}")
+
+        gt_data_filtered.append(frame_gt_data)  # Append as a list for each frame
+
+        if sampled_points is None:
+            sampled_points = sample_func(
+                frame_gt_data,
+                num_points=args.sample_points,
+                include_center=True
+            )
+            first_valid_frame_index = i
 
     return gt_data_filtered, sampled_points, first_valid_frame_index
 
-def initialize_predictor(args, frame_names, sampled_points, prompt_frame):
+def initialize_predictor(args, frame_names, sampled_points, prompt_frame_index):
     model_cfg = get_model_cfg(os.path.basename(args.sam2_checkpoint))
     predictor = build_sam2_video_predictor(model_cfg, args.sam2_checkpoint)
     inference_state = predictor.init_state(video_path=args.video_dir)
 
     prompts = {}
-    ann_frame_idx = prompt_frame
 
     for obj_id, points in enumerate(sampled_points, start=1):
         labels = np.ones(args.sample_points, dtype=np.int32)  # All points are positive
         prompts[obj_id] = points, labels
         predictor.add_new_points(
             inference_state=inference_state,
-            frame_idx=ann_frame_idx,
+            frame_idx=prompt_frame_index,
             obj_id=obj_id,
             points=np.array(points, dtype=np.float32),
             labels=labels,
@@ -116,10 +122,10 @@ def main(args):
         print(f"Error: {e}")
         return
 
-    prompt_frame = first_valid_frame_index
+    prompt_frame_index = first_valid_frame_index
     prompt_points = sampled_points
 
-    predictor, inference_state = initialize_predictor(args, frame_names, prompt_points, prompt_frame)
+    predictor, inference_state = initialize_predictor(args, frame_names, prompt_points, prompt_frame_index)
 
     video_segments = {}
     for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(inference_state):
@@ -131,23 +137,23 @@ def main(args):
     os.makedirs(args.output_dir, exist_ok=True)
 
     # Visualize prompt frame
-    prompt_frame_path = os.path.join(args.video_dir, frame_names[prompt_frame])
+    prompt_frame_path = os.path.join(args.video_dir, frame_names[prompt_frame_index])
     prompt_frame_img = np.array(Image.open(prompt_frame_path))
     prompt_frame_predictions = np.zeros_like(prompt_frame_img[:,:,0])
-    for obj_id, mask in video_segments[prompt_frame].items():
+    for obj_id, mask in video_segments[prompt_frame_index].items():
         prompt_frame_predictions[mask] = obj_id
 
     combined_output_path = os.path.join(args.output_dir, 'prompt_frame_visualization.png')
     visualize_first_frame_comprehensive(
         prompt_frame_img,
-        gt_data,
+        gt_data[first_valid_frame_index],
         prompt_points,
         prompt_frame_predictions,
         combined_output_path,
         args.gt_type
     )
 
-    visualize_all_frames(video_segments, frame_names, args.video_dir, args.output_dir, gt_data, prompt_frame, prompt_points, args.gt_type)
+    visualize_all_frames(video_segments, frame_names, args.video_dir, args.output_dir, gt_data, prompt_frame_index, prompt_points, args.gt_type)
     # Save outputs
     save_pixel_masks(video_segments, args.output_dir)
     coco_annotations, coco_images = create_coco_annotations(video_segments, frame_names)
