@@ -1,4 +1,4 @@
-# SAM2 Surgical Video Segmentation
+
 
 
 
@@ -21,8 +21,27 @@ sudo apt install ffmpeg
 pip install ffmpeg-python
 ```
 
-## Usage
 
+# Usage: Mask Prompts
+
+
+Currently, the script only supports processing a single video, provided as individual frames. To convert a video to frames:
+
+
+
+```bash
+ffmpeg -i /path/to/video.mp4 -q:v 2 -start_number 0 /path/to/output/frames/'%05d.jpg'
+```
+## Example
+Only pixel-mask GT are tested.
+```bash
+python main_pixel_mask.py --video_dir examples/video_pixel  --sam2_checkpoint checkpoints/sam2_hiera_tiny.pt --output_dir pm_color_pixel_output  --gt_path examples/video_pixel/frame_561_endo_color_mask.png
+```
+
+
+# Usage: Point Prompts
+
+This case, we convert any other GT format to point prompts, e.g., a pixel mask's center can be one point prompt.
 Currently, the script only supports processing a single video, provided as individual frames. To convert a video to frames:
 
 ```bash
@@ -45,11 +64,11 @@ python main_point.py --video_dir <path_to_video_frames> --sam2_checkpoint <path_
 - `--sam2_checkpoint`: Path to the SAM2 checkpoint file (required).
 - `--output_dir`: Output directory for results (default: current directory).
 - `--vis_frame_stride`: Stride for visualization frames (default: 15).
-- `--gt_path`: Path to ground truth data in JSON format (required).
-- `--gt_type`: Type of ground truth data, either 'bbox' or 'mask' (required).
+- `--gt_path`: Path to ground truth data in JSON format or the path to a pixel mask image.
+- `--gt_type`: Type of ground truth data, either 'bbox' or 'mask' or 'pixel-mask' (required).
 - `--sample_points`: Number of points to sample for each object (default: 1).
 
-## Script Workflow 
+### Script Workflow 
 
 1. Uses ground truth (GT) data from the first frame only.
 2. Generates point prompts from bounding boxes or masks.
@@ -67,14 +86,8 @@ The script generates in the specified output directory:
 4. COCO format annotations in JSON.
 5. Visualization of the first frame with bounding boxes and sampled points.
 
-[//]: # (## Additional Files)
 
-[//]: # ()
-[//]: # (- `utils.py`: Utility functions for visualization, color mapping, and COCO annotation creation.)
-
-[//]: # (- `groundtruth2point.py`: Functions for sampling points from bounding boxes and masks.)
-
-## Examples
+## Examples- Convert to Point Prompts
 
 ### Bounding Boxes (bbx) as ground truths
 
@@ -112,7 +125,8 @@ This is for colored pixel mask
 python main_point.py --video_dir examples/video_pixel  --sam2_checkpoint checkpoints/sam2_hiera_tiny.pt --output_dir test_color_pixel_output --gt_path examples/video_pixel/frame_561_endo_color_mask.png --gt_type pixel_mask
 ```
 
-### Complete Pipeline on Endoscapes2023 Dataset
+
+# Complete Pipeline on Endoscapes2023 Dataset
 See `SurgicalSAM2/Endoscapes2023_Pipeline` for details.
 
 The `point_prompt.ipynb` provides a step-by-step guide on how to use point prompts for segmentation within the Endoscapes2023 dataset. Additionally, it showcases the process of generating point prompts directly from ground truth masks.
@@ -130,23 +144,15 @@ The folder `Evaluation` contains different metric for different datasets. See `u
 |  SurgToolLoc  |      Dice, IOU, MAE,      |
 
 
-## Potential Issues 
 
-- First frame may lack ground truths
-- Ground truth format inconsistencies
-- Dependency conflicts or version incompatibilities
 
-## Current limitations
-
-- As many frames lack of ground truths, the scripts only support to process a single video with a GT json file that contains exactly the annotation for the first frame. That means we have to manually find a frame that has GT in a complete json file.
-- Due to various GT formats of different dataset, we may have to design custom GT preprocessing. 
 
 
 ## Add Todo
 - [x] support to process a single video with a GT json file that contains complete annotations
 - [x] Implement search for first frame with valid GT
 - [ ] Disentangle contents in main_point.py
-- [ ] Develop main_mask.py for direct mask input processing
+- [x] Develop main_mask.py for direct mask input processing
 - [ ] Develop main_bbx.py for direct bounding box input handling
 - [ ] Interactive point prompting in a .ipynb file
 - [ ] Implement multi-video batch processing

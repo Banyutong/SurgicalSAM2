@@ -15,6 +15,8 @@ import pycocotools.mask as mask_util
 import random
 import re
 from tqdm import tqdm
+
+
 def show_mask(mask, ax, obj_id=None, random_color=False):
 	if random_color:
 		color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
@@ -85,52 +87,52 @@ def visualize_first_frame_bbx(image, bboxes, sampled_points, output_path):
 	print(f"First frame visualization (bboxes and points) saved to {output_path}")
 
 
-
 def visualize_first_frame_mask(image, masks, sampled_points, output_path):
-    # Convert image to RGB if it's not already
-    if isinstance(image, str):
-        image = cv2.imread(image)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    elif isinstance(image, Image.Image):
-        image = np.array(image)
+	# Convert image to RGB if it's not already
+	if isinstance(image, str):
+		image = cv2.imread(image)
+		image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+	elif isinstance(image, Image.Image):
+		image = np.array(image)
 
-    # Create a copy of the image for drawing filled contours
-    filled_image = image.copy()
+	# Create a copy of the image for drawing filled contours
+	filled_image = image.copy()
 
-    # Generate a color map for the masks
-    colors = get_color_map(len(masks))
+	# Generate a color map for the masks
+	colors = get_color_map(len(masks))
 
-    # Create an overlay for filled contours
-    overlay = np.zeros_like(filled_image)
+	# Create an overlay for filled contours
+	overlay = np.zeros_like(filled_image)
 
-    # Loop over each mask and fill the contour
-    for i, (mask, points) in enumerate(zip(masks, sampled_points)):
-        color = [int(c * 255) for c in colors[i]]
+	# Loop over each mask and fill the contour
+	for i, (mask, points) in enumerate(zip(masks, sampled_points)):
+		color = [int(c * 255) for c in colors[i]]
 
-        # Find contours of the mask
-        contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+		# Find contours of the mask
+		contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        # Fill contours on the overlay
-        cv2.fillPoly(overlay, contours, color)
+		# Fill contours on the overlay
+		cv2.fillPoly(overlay, contours, color)
 
-        # Plot sampled points
-        for point in points:
-            cv2.circle(filled_image, tuple(map(int, point)), 5, color, -1)
+		# Plot sampled points
+		for point in points:
+			cv2.circle(filled_image, tuple(map(int, point)), 5, color, -1)
 
-    # Blend the filled contours with the original image
-    alpha = 0.3  # Adjust this value to change the transparency of the filled areas
-    filled_image = cv2.addWeighted(filled_image, 1 - alpha, overlay, alpha, 0)
+	# Blend the filled contours with the original image
+	alpha = 0.3  # Adjust this value to change the transparency of the filled areas
+	filled_image = cv2.addWeighted(filled_image, 1 - alpha, overlay, alpha, 0)
 
-    # Visualize the image with the filled contours
-    plt.figure(figsize=(10, 10))
-    plt.imshow(filled_image)
-    plt.title("First Frame with Filled Mask Contours and Sampled Points")
-    plt.axis('off')
-    plt.tight_layout()
-    plt.savefig(output_path, bbox_inches='tight', pad_inches=0)
-    plt.close()
+	# Visualize the image with the filled contours
+	plt.figure(figsize=(10, 10))
+	plt.imshow(filled_image)
+	plt.title("First Frame with Filled Mask Contours and Sampled Points")
+	plt.axis('off')
+	plt.tight_layout()
+	plt.savefig(output_path, bbox_inches='tight', pad_inches=0)
+	plt.close()
 
-    print(f"First frame visualization saved to {output_path}")
+	print(f"First frame visualization saved to {output_path}")
+
 
 # def get_color_map(n):
 # 	def hsv2rgb(h, s, v):
@@ -235,173 +237,192 @@ def create_mask_overlay(image, pixel_mask):
 
 
 def get_color_map_255(num_classes):
-    """Generate a color map for visualizing different objects, with values in 0-255 range."""
-    colors = []
-    for i in range(num_classes):
-        hue = i / num_classes
-        rgb = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
-        colors.append(tuple(int(c * 255) for c in rgb))
-    return colors
+	"""Generate a color map for visualizing different objects, with values in 0-255 range."""
+	colors = []
+	for i in range(num_classes):
+		hue = i / num_classes
+		rgb = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
+		colors.append(tuple(int(c * 255) for c in rgb))
+	return colors
+
 
 def visualize_first_frame_comprehensive(image, first_valid_gt, sampled_points, predictions, output_path, gt_type):
-    """
-    Visualize the first frame with original image, ground truth (bboxes, masks, or pixel_mask) with points, and predictions.
+	"""
+	Visualize the first frame with original image, ground truth (bboxes, masks, or pixel_mask) with points, and predictions.
 
-    Args:
-    image (np.ndarray): The original image.
-    first_valid_gt (list or np.ndarray): List of ground truth data (bboxes or masks) or a single pixel_mask array.
-    sampled_points (list): List of sampled points for each object.
-    predictions (np.ndarray): Predicted segmentation mask.
-    output_path (str): Path to save the visualization.
-    gt_type (str): Type of ground truth data ('bbox', 'mask', or 'pixel_mask').
-    """
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(30, 10))
+	Args:
+	image (np.ndarray): The original image.
+	first_valid_gt (list or np.ndarray): List of ground truth data (bboxes or masks) or a single pixel_mask array.
+	sampled_points (list): List of sampled points for each object.
+	predictions (np.ndarray): Predicted segmentation mask.
+	output_path (str): Path to save the visualization.
+	gt_type (str): Type of ground truth data ('bbox', 'mask', or 'pixel_mask').
+	"""
+	fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(30, 10))
 
-    # 1. Original Image
-    ax1.imshow(image)
-    ax1.set_title("Original Image")
-    ax1.axis('off')
+	# 1. Original Image
+	ax1.imshow(image)
+	ax1.set_title("Original Image")
+	ax1.axis('off')
 
-    # 2. Image with ground truth and point prompts
-    if gt_type == 'pixel_mask': # assume for pixel_mask, the gt is always the first frame with index 0
-        if first_valid_gt.ndim == 2:
-            ax2.imshow(first_valid_gt, cmap='tab20')
-        else:
-            ax2.imshow(first_valid_gt)
+	# 2. Image with ground truth and point prompts
+	if gt_type == 'pixel_mask':  # assume for pixel_mask, the gt is always the first frame with index 0
+		if first_valid_gt.ndim == 2:
+			ax2.imshow(first_valid_gt, cmap='tab20')
+		else:
+			ax2.imshow(first_valid_gt)
 
-        if sampled_points is not None:
-            colors = get_color_map(len(sampled_points))
-            for i, points in enumerate(sampled_points):
-                color = colors[i]
-                points = np.array(points)
-                ax2.scatter(points[:, 0], points[:, 1], c=[color], s=200, marker='*', edgecolor='white', linewidth=1.25)
-    else:
-        ax2.imshow(image)
-        colors = get_color_map_255(len(first_valid_gt))
-        for i, (gt, points) in enumerate(zip(first_valid_gt, sampled_points)):
-            color = tuple(c / 255 for c in colors[i])  # Normalize color to 0-1 range for matplotlib
+		if sampled_points is not None:
+			colors = get_color_map(len(sampled_points))
+			for i, points in enumerate(sampled_points):
+				color = colors[i]
+				points = np.array(points)
+				ax2.scatter(points[:, 0], points[:, 1], c=[color], s=200, marker='*', edgecolor='white', linewidth=1.25)
+	else:
+		ax2.imshow(image)
+		colors = get_color_map_255(len(first_valid_gt))
+		for i, (gt, points) in enumerate(zip(first_valid_gt, sampled_points)):
+			color = tuple(c / 255 for c in colors[i])  # Normalize color to 0-1 range for matplotlib
 
-            if gt_type == 'bbox':
-                # Draw bounding box
-                x, y, w, h = gt
-                rect = plt.Rectangle((x, y), w, h, fill=False, edgecolor=color, linewidth=2)
-                ax2.add_patch(rect)
-            elif gt_type == 'mask':
-                # Draw filled mask contour
-                contours, _ = cv2.findContours(gt.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                for contour in contours:
-                    ax2.add_patch(plt.Polygon(contour.reshape(-1, 2), fill=True, alpha=0.4, color=color))
+			if gt_type == 'bbox':
+				# Draw bounding box
+				x, y, w, h = gt
+				rect = plt.Rectangle((x, y), w, h, fill=False, edgecolor=color, linewidth=2)
+				ax2.add_patch(rect)
+			elif gt_type == 'mask':
+				# Draw filled mask contour
+				contours, _ = cv2.findContours(gt.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+				for contour in contours:
+					ax2.add_patch(plt.Polygon(contour.reshape(-1, 2), fill=True, alpha=0.4, color=color))
 
-            # Plot sampled points
-            points = np.array(points)
-            ax2.scatter(points[:, 0], points[:, 1], c=[color], s=100, marker='*')
+			# Plot sampled points
+			points = np.array(points)
+			ax2.scatter(points[:, 0], points[:, 1], c=[color], s=100, marker='*')
 
-    ax2.set_title(f"Ground Truth ({gt_type.capitalize()}) and Point Prompts")
-    ax2.axis('off')
+	ax2.set_title(f"Ground Truth ({gt_type.capitalize()}) and Point Prompts")
+	ax2.axis('off')
 
-    # 3. Image with predictions (filled masks)
-    ax3.imshow(predictions, cmap='tab20')
-    ax3.set_title("Predicted Segmentation")
-    ax3.axis('off')
+	# 3. Image with predictions (filled masks)
+	ax3.imshow(predictions, cmap='tab20')
+	ax3.set_title("Predicted Segmentation")
+	ax3.axis('off')
 
-    plt.tight_layout()
-    plt.savefig(output_path, bbox_inches='tight', pad_inches=0.1)
-    plt.close()
+	plt.tight_layout()
+	plt.savefig(output_path, bbox_inches='tight', pad_inches=0.1)
+	plt.close()
 
-    print(f"Comprehensive first frame visualization saved to {output_path}")
-
-def visualize_all_frames(video_segments, frame_names, video_dir, output_dir, gt_data, prompt_frame, prompt_points, gt_type):
-    vis_dir = os.path.join(output_dir, 'visualization')
-    os.makedirs(vis_dir, exist_ok=True)
-
-    # Load the prompt frame once
-    prompt_frame_image = np.array(Image.open(os.path.join(video_dir, frame_names[prompt_frame])))
-
-    for frame_idx, frame_name in tqdm(enumerate(frame_names), desc="visualize frames"):
-        current_frame = np.array(Image.open(os.path.join(video_dir, frame_name)))
-
-        prediction = np.zeros_like(current_frame[:,:,0])
-        for obj_id, mask in video_segments[frame_idx].items():
-            prediction[mask] = obj_id
-
-        if gt_type == 'pixel_mask':
-            current_gt = gt_data[frame_idx] if frame_idx < len(gt_data) else np.zeros_like(current_frame[:, :, 0])
-        elif gt_type == 'mask':
-            current_gt = gt_data[frame_idx] if frame_idx < len(gt_data) else np.zeros_like(current_frame[:,:,0])
-        else:  # bbox
-            current_gt = gt_data[frame_idx] if frame_idx < len(gt_data) else []
-
-        output_path = os.path.join(vis_dir, f'frame_{frame_idx:04d}.png')
-
-        visualize_frame(
-            prompt_frame_image,
-            prompt_points,
-            current_frame,
-            current_gt,
-            prediction,
-            output_path,
-            gt_type
-        )
-
-    print(f"All frame visualizations saved to {vis_dir}")
+	print(f"Comprehensive first frame visualization saved to {output_path}")
 
 
-def visualize_frame(prompt_frame, prompt_points, current_frame, ground_truth, prediction, output_path, gt_type='mask'):
-    fig, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, figsize=(40, 10))
+def visualize_all_frames(video_segments, frame_names, video_dir, output_dir, gt_data, prompt_frame_index=None,
+                         prompt_points=None, gt_type="pixel_mask", show_first_frame=True, show_points=True):
+	vis_dir = os.path.join(output_dir, 'visualization')
+	os.makedirs(vis_dir, exist_ok=True)
+	prompt_frame_image = None
+	# Load the prompt frame once
+	if show_first_frame:
+		if show_points:
+			prompt_frame = np.array(Image.open(os.path.join(video_dir, frame_names[prompt_frame_index])))
+		else:
+			prompt_frame = gt_data[0]
 
-    # Prompt frame with plotted points
-    ax1.imshow(prompt_frame)
-    ax1.set_title("Prompt Frame with Points")
-    colors = get_color_map(len(prompt_points))
-    for i, points in enumerate(prompt_points):
-        color = colors[i]
-        points = np.array(points)
-        ax1.scatter(points[:, 0], points[:, 1], c=[color], s=200, marker='*', edgecolor='white', linewidth=1.25)
-    ax1.axis('off')
+	for frame_idx, frame_name in tqdm(enumerate(frame_names), desc="visualize frames"):
+		current_frame = np.array(Image.open(os.path.join(video_dir, frame_name)))
 
-    # Current frame
-    ax2.imshow(current_frame)
-    ax2.set_title("Current Frame")
-    ax2.axis('off')
+		prediction = np.zeros_like(current_frame[:, :, 0])
+		for obj_id, mask in video_segments[frame_idx].items():
+			prediction[mask] = obj_id
 
-    # Ground truth
+		if gt_type == 'pixel_mask':
+			current_gt = gt_data[frame_idx] if frame_idx < len(gt_data) else np.zeros_like(current_frame[:, :, 0])
+		elif gt_type == 'mask':
+			current_gt = gt_data[frame_idx] if frame_idx < len(gt_data) else np.zeros_like(current_frame[:, :, 0])
+		else:  # bbox
+			current_gt = gt_data[frame_idx] if frame_idx < len(gt_data) else []
+
+		output_path = os.path.join(vis_dir, f'frame_{frame_idx:04d}.png')
+
+		visualize_frame(
+			current_frame,
+			current_gt,
+			prediction,
+			output_path,
+			prompt_frame,
+			prompt_points,
+			gt_type,
+			show_first_frame,
+			show_points
+		)
+
+	print(f"All frame visualizations saved to {vis_dir}")
 
 
-    if ground_truth is None or len(ground_truth) == 0:
-        ax3.imshow(current_frame)
-        # Check if ground_truth is an empty list
-        ax3.text(0.5, 0.5, 'No GT', ha='center', va='center', transform=ax3.transAxes, fontsize=20, color='white',
-                 bbox=dict(facecolor='black', alpha=0.5))
-    elif gt_type == 'mask' :
-        # Use current_frame as background
-        ax3.imshow(current_frame)
-        for mask in ground_truth:
-            ax3.imshow(mask, cmap='tab20', alpha=0.7)
-    elif gt_type == 'pixel_mask':
+def visualize_frame(current_frame, ground_truth, prediction, output_path, prompt_frame=None, prompt_points=None,
+                    gt_type='pixel_mask', show_first_frame=True, show_points=True):
+	if show_first_frame:
+		fig, axes = plt.subplots(1, 4, figsize=(40, 10))
+	else:
+		fig, axes = plt.subplots(1, 3, figsize=(30, 10))
 
-        ax3.imshow(ground_truth, cmap='tab20')
-    elif gt_type == 'bbox':
-        ax3.imshow(current_frame)
-        for bbox in ground_truth:
-            rect = plt.Rectangle((bbox[0], bbox[1]), bbox[2], bbox[3], fill=False, edgecolor='r', linewidth=2)
-            ax3.add_patch(rect)
-    ax3.set_title(f"Ground Truth ({gt_type.capitalize()})")
-    ax3.axis('off')
+	axes = axes.flatten()  # Flatten the axes array for easier indexing
 
-    # Prediction
-    ax4.imshow(prediction, cmap='tab20')
-    ax4.set_title("Predicted Segmentation")
-    ax4.axis('off')
+	if show_first_frame:
+		# Prompt frame with plotted points
+		axes[0].imshow(prompt_frame)
 
-    plt.tight_layout()
-    plt.savefig(output_path, bbox_inches='tight', pad_inches=0.1)
-    plt.close()
+		axes[0].set_title("Prompt Frame")
+		if show_points:
+			colors = get_color_map(len(prompt_points))
+			for i, points in enumerate(prompt_points):
+				color = colors[i]
+				points = np.array(points)
+				axes[0].scatter(points[:, 0], points[:, 1], c=[color], s=200, marker='*', edgecolor='white',
+				                linewidth=1.25)
+		axes[0].axis('off')
+
+	# Adjust index based on whether we're showing the first frame
+	idx_offset = 0 if show_first_frame else -1
+
+	# Current frame
+	axes[1 + idx_offset].imshow(current_frame)
+	axes[1 + idx_offset].set_title("Current Frame")
+	axes[1 + idx_offset].axis('off')
+
+	# Ground truth
+	if ground_truth is None or len(ground_truth) == 0:
+		axes[2 + idx_offset].imshow(current_frame)
+		axes[2 + idx_offset].text(0.5, 0.5, 'No GT', ha='center', va='center', transform=axes[2 + idx_offset].transAxes,
+		                          fontsize=20, color='white',
+		                          bbox=dict(facecolor='black', alpha=0.5))
+	elif gt_type == 'mask':
+		axes[2 + idx_offset].imshow(current_frame)
+		for mask in ground_truth:
+			axes[2 + idx_offset].imshow(mask, cmap='tab20', alpha=0.7)
+	elif gt_type == 'pixel_mask':
+		axes[2 + idx_offset].imshow(ground_truth, cmap='tab20')
+	elif gt_type == 'bbox':
+		axes[2 + idx_offset].imshow(current_frame)
+		for bbox in ground_truth:
+			rect = plt.Rectangle((bbox[0], bbox[1]), bbox[2], bbox[3], fill=False, edgecolor='r', linewidth=2)
+			axes[2 + idx_offset].add_patch(rect)
+	axes[2 + idx_offset].set_title(f"Ground Truth ({gt_type.capitalize()})")
+	axes[2 + idx_offset].axis('off')
+
+	# Prediction
+	axes[3 + idx_offset].imshow(prediction, cmap='tab20')
+	axes[3 + idx_offset].set_title("Predicted Segmentation")
+	axes[3 + idx_offset].axis('off')
+
+	plt.tight_layout()
+	plt.savefig(output_path, bbox_inches='tight', pad_inches=0.1)
+	plt.close()
+
 
 def get_color_map(num_classes):
-    """Generate a color map for visualizing different objects."""
-    colors = []
-    for i in range(num_classes):
-        hue = i / num_classes
-        rgb = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
-        colors.append(rgb)  # Keep as float values in range 0-1
-    return colors
+	"""Generate a color map for visualizing different objects."""
+	colors = []
+	for i in range(num_classes):
+		hue = i / num_classes
+		rgb = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
+		colors.append(rgb)  # Keep as float values in range 0-1
+	return colors

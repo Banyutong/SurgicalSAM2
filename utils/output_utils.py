@@ -55,7 +55,7 @@ def create_coco_annotations(video_segments, frame_names):
     return coco_annotations, coco_images
 
 def save_visualizations(video_segments, frame_names, video_dir, output_dir, object_colors, vis_frame_stride):
-    os.makedirs(os.path.join(output_dir, 'visualizations'), exist_ok=True)
+    os.makedirs(os.path.join(output_dir, 'visualizations_for_gif'), exist_ok=True)
     gif_frames = []
     for frame_idx, frame_name in enumerate(frame_names):
         original_img = Image.open(os.path.join(video_dir, frame_name))
@@ -82,7 +82,7 @@ def save_visualizations(video_segments, frame_names, video_dir, output_dir, obje
         if frame_idx % vis_frame_stride == 0:
             gif_frames.append(result)
             # Also save individual frame
-            result.save(os.path.join(output_dir, 'visualizations', f'vis_{frame_name}'))
+            result.save(os.path.join(output_dir, 'visualizations_for_gif', f'vis_{frame_name}'))
     
     # Save GIF
     if gif_frames:
