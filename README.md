@@ -126,10 +126,12 @@ python main_point.py --video_dir examples/video_pixel  --sam2_checkpoint checkpo
 ```
 
 
-# Complete Pipeline on Endoscapes2023 Dataset
+# Completed Pipeline on Endoscapes2023 Dataset
 See `SurgicalSAM2/Endoscapes2023_Pipeline` for details.
 
-The `point_prompt.ipynb` provides a step-by-step guide on how to use point prompts for segmentation within the Endoscapes2023 dataset. Additionally, it showcases the process of generating point prompts directly from ground truth masks.
+-  `Endoscapes2023_Pipeline/point_prompt.ipynb` provides a step-by-step guide on how to use point prompts for segmentation within the Endoscapes2023 dataset. Additionally, it showcases the process of generating point prompts directly from ground truth masks.
+- `Endoscapes2023_Pipeline/main.py` demonstrates how to batch process videos.
+-  `Endoscapes2023_Pipeline/endoscapes_video.json` contains the information for the batch processing.
 ## Evaluation
 The folder `Evaluation` contains different metric for different datasets. See `utils.py` for details.
 
@@ -144,8 +146,79 @@ The folder `Evaluation` contains different metric for different datasets. See `u
 |  SurgToolLoc  |      Dice, IOU, MAE,      |
 
 
+## Reinitialization for every N frames
+One version of reinitialization is implemented in `Eodoscapes2023/main.py`. You can focus on the following pieces of code to have an overview of the reinitialization method.
 
+```python
+def process_video_clip(
+    video_info, video_order, coco_info, prompt_type, start_idx, end_idx, output_path
+):
+    video_dir = create_symbol_link_for_video(
+        video_info[video_order]["frames"][start_idx : end_idx + 1]
+    )
+    prompt_frame = find_prompt_frame(
+        video_info, video_order, coco_info, start_idx, end_idx
+    )
+    if prompt_frame is None:
+        return {}
+    prompt_objs = get_each_obj(prompt_frame, coco_info)
+    predictor = build_sam2_video_predictor(model_cfg, sam2_checkpoint)
+    inference_state = predictor.init_state(video_path=video_dir)
+    predictor, inference_state, out_obj_ids, out_mask_logits = add_prompt(
+        prompt_objs,
+        predictor,
+        inference_state,
+        prompt_frame["order_in_video"] - start_idx,
+        prompt_type,
+    )
+    video_output_path = os.path.join(
+        output_path, f"video_{video_info[video_order]["video_id"]}"
+    )
+    os.makedirs(video_output_path, exist_ok=True)
+    save_prompt_frame(
+        video_info[video_order]["frames"][prompt_frame["order_in_video"]],
+        prompt_objs,
+        prompt_type,
+        out_obj_ids,
+        out_mask_logits,
+        len(coco_info.cats),
+        video_output_path,
+    )
+    video_segments = predict_on_video(predictor, inference_state, start_idx)
+    del predictor
+    torch.cuda.empty_cache()
+    return video_segments
 
+```
+```python
+def process_singel_video(
+    video_info, video_order, coco_info, prompt_type, clip_length, output_path
+):
+    video_segments = {}
+    if clip_length is None:
+        clip_length = len(video_info[video_order]["frames"])
+    for start_idx in range(0, len(video_info[video_order]["frames"]), clip_length):
+        end_idx = min(
+            start_idx + clip_length - 1, len(video_info[video_order]["frames"]) - 1
+        )
+        video_segments.update(
+            process_video_clip(
+                video_info,
+                video_order,
+                coco_info,
+                prompt_type,
+                start_idx,
+                end_idx,
+                output_path,
+            )
+        )
+    return video_segments
+```
+For other details, please have a look at the `Eodoscapes2023_Pipeline/main.py` file.
+### A few things to notice
+1. The code now is **NOT** based on the `main_point.py` or `main_pixel_mask.py`. As COCO data format is used in Endoscapes2023 instead of pixel masks. And there are extra configuration you need to make it work on segments.
+2. The `process_video_clip` function is designed to process a segment of a video, which is defined by `start_idx` and `end_idx`. This function is called repeatedly by `process_singel_video` to process the entire video in segments.
+3. The `clip_length` parameter in `process_singel_video` determines the length of each video segment to be processed. If `clip_length` is set to `None`, the entire video will be processed as a single segment.
 
 
 ## Add Todo
