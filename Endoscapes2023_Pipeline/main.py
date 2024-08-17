@@ -24,15 +24,17 @@ from utils import (
 )
 from visualization import visualize_all_frames, visualize_first_frame_comprehensive
 
+# Enable autocast for mixed precision on CUDA devices
 torch.autocast(device_type="cuda", dtype=torch.bfloat16).__enter__()
 
+# Enable TensorFloat32 (tf32) for Ampere GPUs
 if torch.cuda.get_device_properties(0).major >= 8:
-    # turn on tfloat32 for Ampere GPUs (https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices)
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
 
 from sam2.build_sam import build_sam2_video_predictor
 
+# Path to the SAM2 checkpoint and model configuration
 sam2_checkpoint = (
     "/bd_byta6000i0/users/sam2/kyyang/SurgicalSAM2/checkpoints/sam2_hiera_tiny.pt"
 )
@@ -46,7 +48,19 @@ model_cfg = "sam2_hiera_t.yaml"
 
 
 def find_prompt_frame(video_info, video_order, coco_info, clip_start, clip_end):
+    """
+    Find the first frame within the clip range that has annotations.
 
+    Args:
+        video_info (dict): Information about the video.
+        video_order (int): Order of the video.
+        coco_info (COCO): COCO dataset object.
+        clip_start (int): Start index of the clip.
+        clip_end (int): End index of the clip.
+
+    Returns:
+        dict: Information about the prompt frame.
+    """
     img_ids = coco_info.getImgIds()
     imgs = coco_info.loadImgs(img_ids)
 
@@ -68,6 +82,15 @@ def find_prompt_frame(video_info, video_order, coco_info, clip_start, clip_end):
 
 
 def create_symbol_link_for_video(frames_info):
+    """
+    Create symbolic links for video frames in a temporary directory.
+
+    Args:
+        frames_info (list): List of frame information.
+
+    Returns:
+        str: Path to the temporary directory.
+    """
     video_dir = tempfile.mkdtemp()
 
     for idx, frame in enumerate(frames_info):
@@ -80,7 +103,17 @@ def create_symbol_link_for_video(frames_info):
 
 
 def get_each_obj(prompt_frame, coco_info, num_points=1):
+    """
+    Extract objects from the prompt frame.
 
+    Args:
+        prompt_frame (dict): Information about the prompt frame.
+        coco_info (COCO): COCO dataset object.
+        num_points (int): Number of points to extract.
+
+    Returns:
+        list: List of objects.
+    """
     ann_ids = coco_info.getAnnIds(imgIds=prompt_frame["id"])
     anns = coco_info.loadAnns(ann_ids)
     num_cat = len(coco_info.cats)
@@ -113,6 +146,19 @@ def add_prompt(
     prompt_frame_order_in_video,
     prompt_type,
 ):
+    """
+    Add prompts to the predictor.
+
+    Args:
+        prompt_objs (list): List of prompt objects.
+        predictor (object): Predictor object.
+        inference_state (object): Inference state object.
+        prompt_frame_order_in_video (int): Order of the prompt frame in the video.
+        prompt_type (str): Type of prompt (points, bbox, mask).
+
+    Returns:
+        tuple: Updated predictor, inference state, object IDs, and mask logits.
+    """
     for obj in prompt_objs:
         match prompt_type:
             case "points":
@@ -139,17 +185,26 @@ def add_prompt(
                     mask=mask_tensor,
                 )
 
-    # print(out_obj_ids)
     return predictor, inference_state, out_obj_ids, out_mask_logits
 
 
 def predict_on_video(predictor, inference_state, start_idx):
+    """
+    Predict segmentation masks for the video.
+
+    Args:
+        predictor (object): Predictor object.
+        inference_state (object): Inference state object.
+        start_idx (int): Start index of the video.
+
+    Returns:
+        dict: Dictionary containing video segments.
+    """
     video_segments = {}
     # video_segments contains the per-frame segmentation results
     for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(
         inference_state, reverse=True
     ):
-        # ic(out_frame_idx + start_idx)
         video_segments[out_frame_idx + start_idx] = {
             out_obj_id: {
                 "mask": (out_mask_logits[i] > 0.0).cpu().numpy(),
@@ -162,7 +217,6 @@ def predict_on_video(predictor, inference_state, start_idx):
     for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(
         inference_state
     ):
-        # ic(out_frame_idx + start_idx)
         video_segments[out_frame_idx + start_idx] = {
             out_obj_id: {
                 "mask": (out_mask_logits[i] > 0.0).cpu().numpy(),
@@ -184,6 +238,18 @@ def save_prompt_frame(
     num_cat,
     output_path,
 ):
+    """
+    Save the prompt frame and prediction results.
+
+    Args:
+        frame_info (dict): Information about the frame.
+        prompt_objects (list): List of prompt objects.
+        prompt_type (str): Type of prompt (points, bbox, mask).
+        out_obj_ids (list): List of object IDs.
+        out_mask_logits (list): List of mask logits.
+        num_cat (int): Number of categories.
+        output_path (str): Path to save the output.
+    """
     # Load the image
     image = cv2.imread(frame_info["path"])
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -220,12 +286,25 @@ def save_prompt_frame(
     plt.savefig(output_file, bbox_inches="tight", pad_inches=0)
     plt.close(fig)
 
-    # ic(f"Saved combined frame to {output_file}")
-
 
 def process_video_clip(
     video_info, video_order, coco_info, prompt_type, start_idx, end_idx, output_path
 ):
+    """
+    Process a video clip.
+
+    Args:
+        video_info (dict): Information about the video.
+        video_order (int): Order of the video.
+        coco_info (COCO): COCO dataset object.
+        prompt_type (str): Type of prompt (points, bbox, mask).
+        start_idx (int): Start index of the clip.
+        end_idx (int): End index of the clip.
+        output_path (str): Path to save the output.
+
+    Returns:
+        dict: Dictionary containing video segments.
+    """
     video_dir = create_symbol_link_for_video(
         video_info[video_order]["frames"][start_idx : end_idx + 1]
     )
@@ -273,6 +352,20 @@ def process_video_clip(
 def process_singel_video(
     video_info, video_order, coco_info, prompt_type, clip_length, output_path
 ):
+    """
+    Process a single video.
+
+    Args:
+        video_info (dict): Information about the video.
+        video_order (int): Order of the video.
+        coco_info (COCO): COCO dataset object.
+        prompt_type (str): Type of prompt (points, bbox, mask).
+        clip_length (int): Length of the clip.
+        output_path (str): Path to save the output.
+
+    Returns:
+        dict: Dictionary containing video segments.
+    """
     video_segments = {}
 
     if clip_length is None:
@@ -301,6 +394,18 @@ def process_singel_video(
 
 
 def process_all_videos(video_info, coco_info, prompt_type, output_path):
+    """
+    Process all videos.
+
+    Args:
+        video_info (dict): Information about the videos.
+        coco_info (COCO): COCO dataset object.
+        prompt_type (str): Type of prompt (points, bbox, mask).
+        output_path (str): Path to save the output.
+
+    Returns:
+        dict: Dictionary containing all video segments.
+    """
     all_video_segments = {}
     for video_order in range(len(video_info)):
         video_segments = process_singel_video(
@@ -310,12 +415,22 @@ def process_all_videos(video_info, coco_info, prompt_type, output_path):
     return all_video_segments
 
 
-def save_as_coco_format(all_video_segments, video_info, coco_info, output_path):
-    ann_total = 0
-    coco_annotations = []
-    num_cat = len(coco_info.cats)
+def save_as_coco_format(all_video_segments, video_info, save_video_list ,coco_info, output_path):
+    """
+    Save the results in COCO format.
 
-    for video_order in range(len(video_info)):
+    Args:
+        all_video_segments (dict): Dictionary containing all video segments.
+        video_info (dict): Information about the videos.
+        save_video_list(list): The videos to save.
+        coco_info (COCO): COCO dataset object.
+        output_path (str): Path to save the output.
+    """
+    ann_total = 0
+    coco_annotations: list = []
+    num_cat: int = len(coco_info.cats)
+
+    for video_order in save_video_list:
         video_segments = all_video_segments[video_order]
 
         for frame_id in range(len(video_info[video_order]["frames"])):
@@ -388,4 +503,4 @@ if __name__ == "__main__":
         [video_info[0]], coco_info, prompt_type, output_path
     )
 
-    # save_as_coco_format(all_videos_segments, video_info, coco_info, output_path)
+    save_as_coco_format(all_videos_segments, video_info,[0] ,coco_info, output_path)
