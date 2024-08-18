@@ -44,8 +44,8 @@ def process_ground_truth(args, frame_names):
     if args.gt_type == 'pixel_mask':
         gt_data = process_gt_pixel_mask(frame_names, args.gt_path)
         gt_mask = np.array(Image.open(args.gt_path))
-        sampled_points = sample_points_from_pixel_mask(gt_mask, num_points=args.sample_points, include_center=True)
-        return gt_data, sampled_points, 0  # Assuming the first frame is always valid for pixel_mask
+        sampled_points, class_labels, class_to_color_mapper = sample_points_from_pixel_mask(gt_mask, num_points=args.sample_points, include_center=True)
+        return gt_data, sampled_points, 0, class_labels, class_to_color_mapper  # Assuming the first frame is always valid for pixel_mask
 
     with open(args.gt_path, 'r') as f:
         gt_data = json.load(f)
@@ -89,17 +89,20 @@ def process_ground_truth(args, frame_names):
             )
             first_valid_frame_index = i
 
-    return gt_data_filtered, sampled_points, first_valid_frame_index
+    return gt_data_filtered, sampled_points, first_valid_frame_index, None, None
 
-def initialize_predictor(args, frame_names, sampled_points, prompt_frame_index):
+def initialize_predictor(args, frame_names, sampled_points, prompt_frame_index, class_labels=None):
     model_cfg = get_model_cfg(os.path.basename(args.sam2_checkpoint))
     predictor = build_sam2_video_predictor(model_cfg, args.sam2_checkpoint)
     inference_state = predictor.init_state(video_path=args.video_dir)
 
     prompts = {}
-
-    for obj_id, points in enumerate(sampled_points, start=1):
+    # def add positive points
+    # todo maybe not start=1
+    for obj_id, points in enumerate(sampled_points):#, start=1):
         labels = np.ones(args.sample_points, dtype=np.int32)  # All points are positive
+        if class_labels is not None:
+            obj_id = class_labels[obj_id] # for pixel-mask, it can get original color of the obj_id
         prompts[obj_id] = points, labels
         predictor.add_new_points(
             inference_state=inference_state,
@@ -108,7 +111,7 @@ def initialize_predictor(args, frame_names, sampled_points, prompt_frame_index):
             points=np.array(points, dtype=np.float32),
             labels=labels,
         )
-
+    # def add negative points
     return predictor, inference_state
 
 def main(args):
@@ -116,7 +119,7 @@ def main(args):
 
     frame_names = find_frames(args.video_dir)
     try:
-        gt_data, sampled_points, first_valid_frame_index = process_ground_truth(args, frame_names)
+        gt_data, sampled_points, first_valid_frame_index, class_labels, class_to_color_mapper = process_ground_truth(args, frame_names)
         print(f"Using ground truth from frame index: {first_valid_frame_index}")
     except ValueError as e:
         print(f"Error: {e}")
@@ -125,7 +128,7 @@ def main(args):
     prompt_frame_index = first_valid_frame_index
     prompt_points = sampled_points
 
-    predictor, inference_state = initialize_predictor(args, frame_names, prompt_points, prompt_frame_index)
+    predictor, inference_state = initialize_predictor(args, frame_names, prompt_points, prompt_frame_index, class_labels)
 
     video_segments = {}
     for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(inference_state):
@@ -141,6 +144,8 @@ def main(args):
     prompt_frame_img = np.array(Image.open(prompt_frame_path))
     prompt_frame_predictions = np.zeros_like(prompt_frame_img[:,:,0])
     for obj_id, mask in video_segments[prompt_frame_index].items():
+        if class_labels is not None:
+            obj_id = class_labels[obj_id]
         prompt_frame_predictions[mask] = obj_id
 
     combined_output_path = os.path.join(args.output_dir, 'prompt_frame_visualization.png')
@@ -150,16 +155,18 @@ def main(args):
         prompt_points,
         prompt_frame_predictions,
         combined_output_path,
-        args.gt_type
+        args.gt_type,
+        class_to_color_mapper,
+        point_class_labels=class_labels
     )
 
-    visualize_all_frames(video_segments, frame_names, args.video_dir, args.output_dir, gt_data, prompt_frame_index, prompt_points, args.gt_type)
-    # Save outputs
-    save_pixel_masks(video_segments, args.output_dir)
-    coco_annotations, coco_images = create_coco_annotations(video_segments, frame_names)
-    object_colors = get_color_map(len(sampled_points))
-    save_visualizations(video_segments, frame_names, args.video_dir, args.output_dir, object_colors, args.vis_frame_stride)
-    save_coco_json(coco_annotations, coco_images, len(sampled_points), args.output_dir)
+    # visualize_all_frames(video_segments, frame_names, args.video_dir, args.output_dir, gt_data, prompt_frame_index, prompt_points, args.gt_type,class_to_color_mapper)
+    # # Save outputs
+    # save_pixel_masks(video_segments, args.output_dir)
+    # coco_annotations, coco_images = create_coco_annotations(video_segments, frame_names)
+    # object_colors = get_color_map(len(sampled_points))
+    # save_visualizations(video_segments, frame_names, args.video_dir, args.output_dir, object_colors, args.vis_frame_stride)
+    # save_coco_json(coco_annotations, coco_images, len(sampled_points), args.output_dir)
 
     print(f"Results saved in {args.output_dir}")
 
