@@ -57,7 +57,7 @@ def get_class_to_color_mapping(gt_mask):
 
     # Create the class-to-color mapping
     class_to_color_mapper = {}
-    for class_label, color in enumerate(unique_values):
+    for class_label, color in enumerate(unique_values, start=1):
         if gt_mask.ndim > 1:
             color = tuple(color)  # Convert to tuple for multi-channel masks
         else:

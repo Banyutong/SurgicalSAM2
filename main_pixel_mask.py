@@ -96,8 +96,8 @@ def main(args):
         }
 
     os.makedirs(args.output_dir, exist_ok=True)
-    # class_to_color_mapper = get_class_to_color_mapping(gt_mask)
-    _, _, class_to_color_mapper = sample_points_from_pixel_mask(gt_mask,  num_points=1, include_center=True)#, remove_small=False)
+    class_to_color_mapper = get_class_to_color_mapping(gt_mask)
+    # _, _, class_to_color_mapper = sample_points_from_pixel_mask(gt_mask,  num_points=1, include_center=True)#, remove_small=False)
     # Visualize all frames
     visualize_all_frames(video_segments, frame_names, args.video_dir, args.output_dir, gt_data,  class_to_color_mapper=class_to_color_mapper, show_first_frame=True, show_points=False)
     
