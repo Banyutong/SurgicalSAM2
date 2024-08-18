@@ -45,6 +45,27 @@ def extract_frame_number(filename):
     return 0  # Default value if no number is found
 
 
+def get_class_to_color_mapping(gt_mask):
+    # Flatten the mask if it's multi-dimensional
+    if gt_mask.ndim > 2:
+        gt_mask = gt_mask.reshape(-1, gt_mask.shape[-1])
+    else:
+        gt_mask = gt_mask.flatten()
+
+    # Get unique values (colors) in the mask
+    unique_values = np.unique(gt_mask, axis=0)
+
+    # Create the class-to-color mapping
+    class_to_color_mapper = {}
+    for class_label, color in enumerate(unique_values):
+        if gt_mask.ndim > 1:
+            color = tuple(color)  # Convert to tuple for multi-channel masks
+        else:
+            color = int(color)  # Keep as int for single-channel masks
+        class_to_color_mapper[class_label] = color
+
+    return class_to_color_mapper
+
 
 def process_gt_pixel_mask(frame_names, gt_path):
 	gt_data = []

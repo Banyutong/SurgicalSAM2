@@ -9,8 +9,9 @@ from sam2.build_sam import build_sam2_video_predictor
 from utils.mask_helpers import get_model_cfg
 from utils.visualization import visualize_first_frame_comprehensive, get_color_map, visualize_all_frames
 # from utils.visualization_mask import visualize_all_frames_masks
-from utils.utils import find_frames, process_gt_pixel_mask
+from utils.utils import find_frames, process_gt_pixel_mask, get_class_to_color_mapping
 from utils.output_utils import save_pixel_masks, create_coco_annotations, save_visualizations, save_coco_json
+from utils.groundtruth2point import  sample_points_from_pixel_mask
 
 def parse_args():
     parser = argparse.ArgumentParser(description="SAM2 Video Segmentation with Pixel Mask")
@@ -32,6 +33,8 @@ def process_ground_truth(args, frame_names):
     gt_data = process_gt_pixel_mask(frame_names, args.gt_path)
     return gt_data # Assuming the first frame is always valid for pixel_mask
 
+
+
 def initialize_predictor(args, frame_names, pixel_mask):
     model_cfg = get_model_cfg(os.path.basename(args.sam2_checkpoint))
     predictor = build_sam2_video_predictor(model_cfg, args.sam2_checkpoint)
@@ -46,7 +49,7 @@ def initialize_predictor(args, frame_names, pixel_mask):
         pixel_mask_2d = np.zeros((pixel_mask.shape[0], pixel_mask.shape[1]), dtype=np.int32)
         unique_colors = np.unique(pixel_mask.reshape(-1, pixel_mask.shape[2]), axis=0)
         for i, color in enumerate(unique_colors):
-            if not np.all(color == 0):  # Skip background (assuming it's black)
+            if (not np.all(color == 0)) and (not np.all(color == 255)):  # Skip background (assuming it's black)
                 mask = np.all(pixel_mask == color, axis=2)
                 pixel_mask_2d[mask] = i + 1  # +1 to reserve 0 for background
     else:
@@ -93,8 +96,10 @@ def main(args):
         }
 
     os.makedirs(args.output_dir, exist_ok=True)
+    # class_to_color_mapper = get_class_to_color_mapping(gt_mask)
+    _, _, class_to_color_mapper = sample_points_from_pixel_mask(gt_mask,  num_points=1, include_center=True)#, remove_small=False)
     # Visualize all frames
-    visualize_all_frames(video_segments, frame_names, args.video_dir, args.output_dir, gt_data, show_first_frame=True, show_points=False)
+    visualize_all_frames(video_segments, frame_names, args.video_dir, args.output_dir, gt_data,  class_to_color_mapper=class_to_color_mapper, show_first_frame=True, show_points=False)
     
     # Save outputs
     save_pixel_masks(video_segments, args.output_dir)

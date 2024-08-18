@@ -173,7 +173,7 @@ def get_connected_components(mask):
 	return labels, counts
 
 
-def remove_small_regions(mask, area_thresh=20, mode="islands"):
+def remove_small_regions(mask, area_thresh=30, mode="islands"):
 	labels, counts = get_connected_components(mask)
 	small_regions = counts < area_thresh
 
@@ -212,19 +212,23 @@ def remove_small_regions(mask, area_thresh=20, mode="islands"):
         mask[small_regions] = 1
     return mask
 
-def sample_points_from_pixel_mask(mask, num_points, include_center=True, area_thresh=20):
+
+
+
+def sample_points_from_pixel_mask(mask, num_points, include_center=True, area_thresh=10, remove_small=True):
     original_mask = mask.copy()  # Keep a copy of the original mask
     if mask.ndim == 2:
         mask = mask[np.newaxis, np.newaxis, ...]  # (H,W) -> (1,1,H,W)
     elif mask.ndim == 3:
         mask = np.transpose(mask, (2, 0, 1))[np.newaxis, ...]  # (H,W,C) -> (1,C,H,W)
 
-    # Remove small regions
-    mask = remove_small_regions(mask, area_thresh=area_thresh, mode="islands")
+    if remove_small:
+        # Remove small regions
+        mask = remove_small_regions(mask, area_thresh=area_thresh, mode="hole")
 
     # Get connected components
     labels, _ = get_connected_components(mask)
-    unique_labels = np.unique(labels)[1:]  # Exclude background (0)
+    unique_labels = np.unique(labels)#[1:]  # Exclude background (0)
 
     points = []
     class_labels = []

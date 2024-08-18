@@ -45,6 +45,7 @@ def process_ground_truth(args, frame_names):
         gt_data = process_gt_pixel_mask(frame_names, args.gt_path)
         gt_mask = np.array(Image.open(args.gt_path))
         sampled_points, class_labels, class_to_color_mapper = sample_points_from_pixel_mask(gt_mask, num_points=args.sample_points, include_center=True)
+
         return gt_data, sampled_points, 0, class_labels, class_to_color_mapper  # Assuming the first frame is always valid for pixel_mask
 
     with open(args.gt_path, 'r') as f:
@@ -91,18 +92,15 @@ def process_ground_truth(args, frame_names):
 
     return gt_data_filtered, sampled_points, first_valid_frame_index, None, None
 
-def initialize_predictor(args, frame_names, sampled_points, prompt_frame_index, class_labels=None):
-    model_cfg = get_model_cfg(os.path.basename(args.sam2_checkpoint))
-    predictor = build_sam2_video_predictor(model_cfg, args.sam2_checkpoint)
-    inference_state = predictor.init_state(video_path=args.video_dir)
 
+def add_points_(predictor, sampled_points, class_labels, inference_state, prompt_frame_index, label_value):
     prompts = {}
-    # def add positive points
-    # because background label is 0
     for obj_id, points in enumerate(sampled_points, start=1):
-        labels = np.ones(args.sample_points, dtype=np.int32)  # All points are positive
+        labels = np.full(args.sample_points, label_value, dtype=np.int32)
+
         if class_labels is not None:
-            obj_id = class_labels[obj_id - 1] # for pixel-mask, it can get original color of the obj_id
+            obj_id = class_labels[obj_id - 1]
+
         prompts[obj_id] = points, labels
         predictor.add_new_points(
             inference_state=inference_state,
@@ -111,8 +109,16 @@ def initialize_predictor(args, frame_names, sampled_points, prompt_frame_index, 
             points=np.array(points, dtype=np.float32),
             labels=labels,
         )
-    # def add negative points
-    return predictor, inference_state
+
+
+def add_positive_points_(*args, **kwargs):
+    add_points_(*args, **kwargs, label_value=1)
+
+
+def add_negative_points_(*args, **kwargs):
+    add_points_(*args, **kwargs, label_value=0)
+
+
 
 def main(args):
     setup_environment()
@@ -128,7 +134,15 @@ def main(args):
     prompt_frame_index = first_valid_frame_index
     prompt_points = sampled_points
 
-    predictor, inference_state = initialize_predictor(args, frame_names, prompt_points, prompt_frame_index, class_labels)
+
+    model_cfg = get_model_cfg(os.path.basename(args.sam2_checkpoint))
+    predictor = build_sam2_video_predictor(model_cfg, args.sam2_checkpoint)
+
+    inference_state = predictor.init_state(video_path=args.video_dir)
+
+    add_positive_points_(predictor, sampled_points, class_labels, inference_state, prompt_frame_index)
+
+    # predictor, inference_state = initialize_predictor(args, frame_names, prompt_points, prompt_frame_index, class_labels)
 
     # official way
     video_segments = {}
