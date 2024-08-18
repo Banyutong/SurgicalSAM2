@@ -243,7 +243,7 @@ def visualize_frame(current_frame, frame_name, ground_truth, prediction, output_
     if ground_truth is None or len(ground_truth) == 0:
         axes[2 + idx_offset].imshow(current_frame)
         axes[2 + idx_offset].text(0.5, 0.5, 'No GT', ha='center', va='center', transform=axes[2 + idx_offset].transAxes,
-                                  fontsize=20, color='white',
+                                  fontsize=50, color='white',
                                   bbox=dict(facecolor='black', alpha=0.5))
     elif gt_type == 'mask':
         axes[2 + idx_offset].imshow(current_frame)

@@ -57,14 +57,16 @@ def get_class_to_color_mapping(gt_mask):
 
     # Create the class-to-color mapping
     class_to_color_mapper = {}
+    color_to_class_mapper = {}
     for class_label, color in enumerate(unique_values, start=1):
         if gt_mask.ndim > 1:
             color = tuple(color)  # Convert to tuple for multi-channel masks
         else:
             color = int(color)  # Keep as int for single-channel masks
         class_to_color_mapper[class_label] = color
+        color_to_class_mapper[color] = class_label
 
-    return class_to_color_mapper
+    return class_to_color_mapper, color_to_class_mapper
 
 
 def process_gt_pixel_mask(frame_names, gt_path):

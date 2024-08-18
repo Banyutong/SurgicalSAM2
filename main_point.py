@@ -93,12 +93,12 @@ def process_ground_truth(args, frame_names):
     return gt_data_filtered, sampled_points, first_valid_frame_index
 
 
-def add_points_(predictor, sampled_points, inference_state, prompt_frame_index, label_value):
+def add_points_(predictor, inference_state, prompt_frame_index,  sampled_points, sampled_points_classes, label_value):
     prompts = {}
-    for obj_id, points in enumerate(sampled_points, start=1):
+    for i, points in enumerate(sampled_points):
         labels = np.full(args.sample_points, label_value, dtype=np.int32)
 
-
+        obj_id = sampled_points_classes[i]
 
         prompts[obj_id] = points, labels
         predictor.add_new_points(
@@ -131,9 +131,24 @@ def main(args):
         return
     if args.gt_type =="pixel_mask":
         gt_mask = np.array(Image.open(args.gt_path))
-        class_to_color_mapper = get_class_to_color_mapping(gt_mask)
+        class_to_color_mapper, color_to_class_mapper = get_class_to_color_mapping(gt_mask)
+        sampled_point_classes = []
+        for point in sampled_points:
+            # Unpack the inner list
+            [[x, y]] = point
+
+            color = tuple(gt_mask[y, x])  # Get color at the point (note the y, x order for numpy arrays)
+            if color in color_to_class_mapper:
+                class_label = color_to_class_mapper[color]
+                sampled_point_classes.append(class_label)
+            else:
+                print(f"Warning: Color {color} at point ({x}, {y}) not found in color_to_class_mapper")
+
+        # Now sampled_point_classes contains the class labels for each sampled point
+        print(f"Classes of sampled points: {sampled_point_classes}")
     prompt_frame_index = first_valid_frame_index
     prompt_points = sampled_points
+    # get original color of those sampled_points in gt_mask
 
 
     model_cfg = get_model_cfg(os.path.basename(args.sam2_checkpoint))
@@ -141,7 +156,7 @@ def main(args):
 
     inference_state = predictor.init_state(video_path=args.video_dir)
 
-    add_positive_points_(predictor, sampled_points, inference_state, prompt_frame_index)
+    add_positive_points_(predictor, inference_state, prompt_frame_index, sampled_points, sampled_point_classes)
 
     # predictor, inference_state = initialize_predictor(args, frame_names, prompt_points, prompt_frame_index, class_labels)
 
@@ -164,16 +179,7 @@ def main(args):
         #     obj_id = class_labels[obj_id]
         prompt_frame_predictions[mask] = obj_id
 
-    combined_output_path = os.path.join(args.output_dir, 'prompt_frame_visualization.png')
-    # visualize_first_frame_comprehensive(
-    #     prompt_frame_img,
-    #     gt_data[first_valid_frame_index],
-    #     prompt_points,
-    #     video_segments[prompt_frame_index],
-    #     combined_output_path,
-    #     args.gt_type,
-    #     class_to_color_mapper
-    # )
+
 
     visualize_all_frames(video_segments, frame_names, args.video_dir, args.output_dir, gt_data, prompt_frame_index, prompt_points, args.gt_type,class_to_color_mapper)
     # # Save outputs
