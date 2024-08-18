@@ -22,7 +22,7 @@ from utils import (
     mask_to_bbox,
     mask_to_points,
 )
-from visualization import visualize_all_frames, visualize_first_frame_comprehensive
+# from visualization import visualize_all_frames, visualize_first_frame_comprehensive
 
 # Enable autocast for mixed precision on CUDA devices
 torch.autocast(device_type="cuda", dtype=torch.bfloat16).__enter__()
@@ -92,6 +92,7 @@ def create_symbol_link_for_video(frames_info):
         str: Path to the temporary directory.
     """
     video_dir = tempfile.mkdtemp()
+    
 
     for idx, frame in enumerate(frames_info):
         frame_name = formatted_number = str(idx).zfill(8)  # 填充到5位宽度
