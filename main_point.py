@@ -22,7 +22,9 @@ def parse_args():
 	parser.add_argument('--gt_path', type=str, required=True, help='Path to ground truth data')
 	parser.add_argument('--gt_type', type=str, choices=['bbox', 'mask', 'pixel_mask'], required=True,
 						help='Type of ground truth (bbox, mask, or pixel_mask)')
-	parser.add_argument('--sample_points', type=int, default=1, help='Number of points to sample for each object')
+	parser.add_argument('--sample_points', type=int, default=2, help='Number of points to sample for each object')
+	# parser.add_argument('--use_negative_points', type=int, default=2,
+	# 					help='Number of negative points to sample for each object')
 	parser.add_argument('--negative_sample_points', type=int, default=2, help='Number of negative points to sample for each object')
 	return parser.parse_args()
 
@@ -118,11 +120,11 @@ def add_positive_points_(predictor, inference_state, prompt_frame_index,  sample
 
 
 
-
-def add_negative_points_(predictor, inference_state, prompt_frame_index,  sampled_points, n_each_class):
+# add_all_points_(predictor, inference_state, prompt_frame_index, merged_points, class_lists)
+def add_all_points_(predictor, inference_state, prompt_frame_index,  merged_points, class_lists):
 	prompts = {}
-	for i, points in enumerate(sampled_points):
-		labels = np.array([0 for _ in range(len(points))], dtype=np.int32)
+	for i, (points, labels )in enumerate(zip(merged_points, class_lists)):
+
 		# obj_id = sampled_points_classes[i]
 		# labels = np.array([1, 1], np.int32)
 		obj_id = i
@@ -167,6 +169,24 @@ def generate_negative_samples(sampled_point_classes, sampled_points, n):
 	return negative_sampled_points, negative_sampled_point_classes
 
 
+def merge_point_lists(merged_prompt_points, negative_points):
+    if len(merged_prompt_points) != len(negative_points):
+        raise ValueError("Input lists must have the same length")
+
+    merged_points = []
+    class_lists = []
+
+    for prompt_points, neg_points in zip(merged_prompt_points, negative_points):
+        # Combine points
+        all_points = prompt_points + neg_points
+        merged_points.append(all_points)
+
+        # Create class list
+        class_list = [1] * len(prompt_points) + [0] * len(neg_points)
+        class_lists.append(class_list)
+
+    return merged_points, class_lists
+
 def main(args):
 	setup_environment()
 
@@ -206,11 +226,16 @@ def main(args):
 
 		# Flatten the merged_prompt_points list by one level
 		merged_prompt_points = [point for sublist in merged_prompt_points for point in sublist]
+		if args.negative_sample_points <= 0:
+			add_positive_points_(predictor, inference_state, prompt_frame_index, merged_prompt_points)
+		else:
 
-		add_positive_points_(predictor, inference_state, prompt_frame_index, merged_prompt_points)
+			negative_points, negative_classes = generate_negative_samples(sampled_point_classes, prompt_points, args.negative_sample_points)
 
-		# negative_points, negative_classes = generate_negative_samples(sampled_point_classes, prompt_points, args.negative_sample_points)
-		# add_negative_points_(predictor, inference_state, prompt_frame_index, negative_points)
+			merged_points, class_lists = merge_point_lists(merged_prompt_points, negative_points)
+
+			add_all_points_(predictor, inference_state, prompt_frame_index, merged_points, class_lists)
+			# prompt_points =
 	else:
 		add_positive_points_(predictor, inference_state, prompt_frame_index, sampled_points)
 		class_to_color_mapper=None
