@@ -23,6 +23,7 @@ def parse_args():
 	parser.add_argument('--gt_type', type=str, choices=['bbox', 'mask', 'pixel_mask'], required=True,
 						help='Type of ground truth (bbox, mask, or pixel_mask)')
 	parser.add_argument('--sample_points', type=int, default=1, help='Number of points to sample for each object')
+	parser.add_argument('--negative_sample_points', type=int, default=2, help='Number of negative points to sample for each object')
 	return parser.parse_args()
 
 def setup_environment():
@@ -93,80 +94,126 @@ def process_ground_truth(args, frame_names):
 	return gt_data_filtered, sampled_points, first_valid_frame_index
 
 
-def add_points_(predictor, inference_state, prompt_frame_index,  sampled_points, sampled_points_classes, label_value):
+def add_positive_points_(predictor, inference_state, prompt_frame_index,  sampled_points):
 	prompts = {}
 	for i, points in enumerate(sampled_points):
-		labels = np.full(args.sample_points, label_value, dtype=np.int32)
-
-		obj_id = sampled_points_classes[i]
-
+		labels = np.array([1 for _ in range(len(points))], dtype=np.int32) # 1 for positive
+		# obj_id = sampled_points_classes[i]
+		# labels = np.array([1, 1], np.int32)
+		obj_id = i
 		prompts[obj_id] = points, labels
-		predictor.add_new_points(
+		points = np.array(points, dtype=np.float32)
+		predictor.add_new_points_or_box(
 			inference_state=inference_state,
 			frame_idx=prompt_frame_index,
 			obj_id=obj_id,
-			points=np.array(points, dtype=np.float32),
-			labels=labels,
+			points= points,
+			labels= labels,
+		)
+		k=1
+		# if i == 1: #todo
+		# 	continue
+		# if i == 2:
+		# 	break
+
+
+
+
+def add_negative_points_(predictor, inference_state, prompt_frame_index,  sampled_points, n_each_class):
+	prompts = {}
+	for i, points in enumerate(sampled_points):
+		labels = np.array([0 for _ in range(len(points))], dtype=np.int32)
+		# obj_id = sampled_points_classes[i]
+		# labels = np.array([1, 1], np.int32)
+		obj_id = i
+		prompts[obj_id] = points, labels
+		points = np.array(points, dtype=np.float32)
+		predictor.add_new_points_or_box(
+			inference_state=inference_state,
+			frame_idx=prompt_frame_index,
+			obj_id=obj_id,
+			points= points,
+			labels= labels,
 		)
 
 
-def add_positive_points_(*args, **kwargs):
-	add_points_(*args, **kwargs, label_value=1)
+import random
+
+import random
 
 
-def add_negative_points_(*args, **kwargs):
-	add_points_(*args, **kwargs, label_value=0)
+def generate_negative_samples(sampled_point_classes, sampled_points, n):
+	class_to_points = {}
+	for cls, point in zip(sampled_point_classes, sampled_points):
+		if cls not in class_to_points:
+			class_to_points[cls] = []
+		class_to_points[cls].append(point)
 
+	negative_sampled_points = []
+	negative_sampled_point_classes = []
+
+	for cls in set(sampled_point_classes):
+		other_points = [p for c, p in zip(sampled_point_classes, sampled_points) if c != cls]
+
+		# Sample n points for this class
+		class_negative_samples = random.sample(other_points, k=n)
+		negative_sampled_points.append(class_negative_samples)
+
+		# Sample classes for these points
+		other_classes = [c for c in set(sampled_point_classes) if c != cls]
+		class_negative_classes = [random.choice(other_classes) for _ in range(n)]
+		negative_sampled_point_classes.append(class_negative_classes)
+
+	return negative_sampled_points, negative_sampled_point_classes
 
 
 def main(args):
 	setup_environment()
 
 	frame_names = find_frames(args.video_dir)
+	model_cfg = get_model_cfg(os.path.basename(args.sam2_checkpoint))
+	predictor = build_sam2_video_predictor(model_cfg, args.sam2_checkpoint)
+
+	inference_state = predictor.init_state(video_path=args.video_dir)
 	try:
 		gt_data, sampled_points, first_valid_frame_index = process_ground_truth(args, frame_names)
 		print(f"Using ground truth from frame index: {first_valid_frame_index}")
 	except ValueError as e:
 		print(f"Error: {e}")
 		return
-	if args.gt_type =="pixel_mask":
-		gt_mask = np.array(Image.open(args.gt_path))
-		class_to_color_mapper, color_to_class_mapper = get_class_to_color_mapping(gt_mask)
-		sampled_point_classes = []
-		for point in sampled_points:
-			# Unpack the inner list
-			if len(point) == 1:
-				# Single-item case: Use existing logic
-				[[x, y]] = point
-				print(f"Processing single point: ({x}, {y})")
-			else:
-				# Multiple-item case: Handle each subpoint
-				for subpoint in point:
-					x, y = subpoint
-					print(f"Processing point from group: ({x}, {y})")
 
-			color = tuple(gt_mask[y, x])  # Get color at the point (note the y, x order for numpy arrays)
-			if color in color_to_class_mapper:
-				class_label = color_to_class_mapper[color]
-				sampled_point_classes.append(class_label)
-			else:
-				print(f"Warning: Color {color} at point ({x}, {y}) not found in color_to_class_mapper")
-
-		# Now sampled_point_classes contains the class labels for each sampled point
-		print(f"Classes of sampled points: {sampled_point_classes}")
 	prompt_frame_index = first_valid_frame_index
-	prompt_points = sampled_points
-	# get original color of those sampled_points in gt_mask
 
+	if args.gt_type =="pixel_mask":
+		info = sampled_points
+		prompt_points = info["sampled_points"]
+		sampled_point_classes = info["classes_points"]
+		class_to_color_mapper = info["class_to_color_mapper"]
+		# Create a dictionary to store points by class
+		points_by_class = {}
+		classes_by_class = {}
 
-	model_cfg = get_model_cfg(os.path.basename(args.sam2_checkpoint))
-	predictor = build_sam2_video_predictor(model_cfg, args.sam2_checkpoint)
+		for point, class_label in zip(prompt_points, sampled_point_classes):
+			if class_label not in points_by_class:
+				points_by_class[class_label] = []
+				classes_by_class[class_label] = []
+			points_by_class[class_label].append(point)
+			classes_by_class[class_label].append(class_label)
 
-	inference_state = predictor.init_state(video_path=args.video_dir)
+		# Convert the dictionaries to the desired format
+		merged_prompt_points = [[points_by_class[class_label]] for class_label in sorted(points_by_class.keys())]
+		merged_point_classes = [classes_by_class[class_label] for class_label in sorted(classes_by_class.keys())]
 
-	add_positive_points_(predictor, inference_state, prompt_frame_index, sampled_points, sampled_point_classes)
+		# Flatten the merged_prompt_points list by one level
+		merged_prompt_points = [point for sublist in merged_prompt_points for point in sublist]
 
-	# predictor, inference_state = initialize_predictor(args, frame_names, prompt_points, prompt_frame_index, class_labels)
+		add_positive_points_(predictor, inference_state, prompt_frame_index, merged_prompt_points)
+
+		negative_points, negative_classes = generate_negative_samples(sampled_point_classes, prompt_points, args.negative_sample_points)
+		add_negative_points_(predictor, inference_state, prompt_frame_index, negative_points)
+	else:
+		add_positive_points_(predictor, inference_state, prompt_frame_index, sampled_points)
+		class_to_color_mapper=None
 
 	# official way
 	video_segments = {}
@@ -189,8 +236,8 @@ def main(args):
 
 
 
-	visualize_all_frames(video_segments, frame_names, args.video_dir, args.output_dir, gt_data, prompt_frame_index, prompt_points, args.gt_type,class_to_color_mapper)
-	# # Save outputs
+	visualize_all_frames(video_segments, frame_names, args.video_dir, args.output_dir, gt_data, prompt_frame_index, prompt_points, args.gt_type, class_to_color_mapper)
+	# Save outputs
 	save_pixel_masks(video_segments, args.output_dir)
 	coco_annotations, coco_images = create_coco_annotations(video_segments, frame_names)
 	object_colors = get_color_map(len(sampled_points))

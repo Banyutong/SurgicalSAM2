@@ -49,9 +49,13 @@ def initialize_predictor(args, frame_names, pixel_mask):
         pixel_mask_2d = np.zeros((pixel_mask.shape[0], pixel_mask.shape[1]), dtype=np.int32)
         unique_colors = np.unique(pixel_mask.reshape(-1, pixel_mask.shape[2]), axis=0)
         for i, color in enumerate(unique_colors):
-            if (not np.all(color == 0)) and (not np.all(color == 255)):  # Skip background (assuming it's black)
+            if np.all(color == 0) or np.all(color == 255):  # Black or white will be skipped
                 mask = np.all(pixel_mask == color, axis=2)
-                pixel_mask_2d[mask] = i + 1  # +1 to reserve 0 for background
+                pixel_mask_2d[mask] = 0
+            else:  # Other colors
+                mask = np.all(pixel_mask == color, axis=2)
+                pixel_mask_2d[mask] = i + 1  #
+
     else:
         pixel_mask_2d = pixel_mask
 

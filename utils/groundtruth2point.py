@@ -114,76 +114,91 @@ def generate_color_list(gt_mask):
     return color_list
 
 
-def sample_points_from_pixel_mask( gt_mask, num_points=2, include_center=True, use_top_bottom=False,
-                                  area_threshold=900):
+def sample_points_from_pixel_mask(gt_mask, num_points=2, include_center=True, use_top_bottom=False,
+                                  area_threshold=900, exclude_extreme_colors={"white":True, "black":True,"gray":True}):
     """
     Sample points from a color image based on a ground truth mask, returning points in (x, y) format.
-
     Args:
-    image (np.ndarray): A 3D numpy array representing the color image.
     gt_mask (np.ndarray): A 3D numpy array representing the ground truth mask.
     num_points (int): Number of points to sample for each object.
     include_center (bool): Whether to include the center point of each object.
     use_top_bottom (bool): Whether to use top and bottom points instead of random selection.
     area_threshold (int): Minimum area for a region to be considered.
-
     Returns:
-    list: List of dictionaries containing sampled points and color information for each object.
+    tuple: (sampled_points, classes_points, class_to_color_mapper, color_to_class_mapper)
+        sampled_points (list): List of all sampled points [x, y] across all classes.
+        classes_points (list): List containing [color_id, [x, y]] for each point.
+        class_to_color_mapper (dict): A dictionary mapping class IDs to colors.
+        color_to_class_mapper (dict): A dictionary mapping colors to class IDs.
     """
     color_list = generate_color_list(gt_mask)
-    if (255, 255, 255) in color_list: # remove white
+    if (255, 255, 255) in color_list and exclude_extreme_colors["white"]:  # remove white
+        print("there are white pixels but not considered for segmentation. they are usually background if you want to consider, please set exclude_extreme_colors ")
         color_list.remove((255, 255, 255))
+    if (0, 0, 0) in color_list and exclude_extreme_colors["black"]:  # remove black
+        color_list.remove((0, 0, 0))
+        print("there are black pixels but not considered for segmentation. if you want to consider, please set exclude_extreme_colors ")
+    if (127, 127, 127) in color_list and exclude_extreme_colors["gray"]:  # remove black
+        color_list.remove((127, 127, 127))
+        print("there are gray pixels but not considered for segmentation. if you want to consider, please set exclude_extreme_colors ")
+    # Generate class_to_color_mapper and color_to_class_mapper
+    class_to_color_mapper = {i: color for i, color in enumerate(color_list)}
+    color_to_class_mapper = {color: i for i, color in enumerate(color_list)}
 
     sampled_points = []
+    classes_points = []
 
     for color_id, color in enumerate(color_list):
         # Generate a binary mask for the current color
         mask = np.all(gt_mask == color, axis=-1)
-
         # Label the masked regions
         labeled_mask, num_features = label(mask)
-
         if num_features > 0:
             # Process each labeled region
             for i in range(1, num_features + 1):
                 object_mask = (labeled_mask == i)
                 area = np.sum(object_mask)
-                # print(f"area {color_id}, color{color}, obj {i} pixel, {area} ")
                 if area < area_threshold:
-                    # print(f"area {color_id} removed")
                     continue
-
                 points = []
-
                 # Include center if requested
                 if include_center:
                     center = center_of_mass(object_mask)
-                    points.append((int(center[1]), int(center[0])))  # (x, y) format
-
-
+                    point = [int(center[1]), int(center[0])]
+                    points.append(point)
+                    classes_points.append(color_id)
                 if use_top_bottom:
                     # Find top and bottom points
                     y_indices, x_indices = np.where(object_mask)
-                    top_point = (x_indices[np.argmin(y_indices)], np.min(y_indices))
-                    bottom_point = (x_indices[np.argmax(y_indices)], np.max(y_indices))
+                    top_point = [x_indices[np.argmin(y_indices)], np.min(y_indices)]
+                    bottom_point = [x_indices[np.argmax(y_indices)], np.max(y_indices)]
                     points.extend([top_point, bottom_point])
+                    classes_points.extend([color_id, color_id])
                 else:
                     # Random selection
                     remaining_points = num_points - len(points)
                     if remaining_points > 0:
                         object_coords = np.argwhere(object_mask)
                         sampled_indices = np.random.choice(len(object_coords), remaining_points, replace=False)
-                        points.extend(object_coords[sampled_indices][:, ::-1])  # Reverse order to (x, y)
+                        for coord in object_coords[sampled_indices]:
+                            point = coord[::-1].tolist()  # [x, y] format
+                            points.append(point)
+                            classes_points.append(color_id)
 
-                #Add the sampled points for this object to the result
-                # sampled_points.append({
-                # 	"color_id": color_id,
-                # 	"color": color,
-                # 	"points": points
-                # })
-                sampled_points.append(points)
+                # Add the sampled points to sampled_points
+                sampled_points.extend(points)
+    info = {
+        'sampled_points': sampled_points,
+        'classes_points': classes_points,
+        'class_to_color_mapper': class_to_color_mapper,
+        'color_to_class_mapper': color_to_class_mapper
+    }
+    return info
 
-    return sampled_points
+
+# Example usage:
+# sampled_points, classes_points, class_to_color_mapper, color_to_class_mapper = sample_points_from_pixel_mask(gt_mask)
+
 
 
 if __name__ == "__main__":
