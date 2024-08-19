@@ -220,14 +220,14 @@ def visualize_frame(current_frame, frame_name, ground_truth, prediction, output_
     if show_first_frame:
         # Prompt frame with plotted points
         axes[0].imshow(prompt_frame)
-
+        axes[0].imshow(ground_truth, alpha=0.7)
         axes[0].set_title("Prompt Frame")
         if show_points:
             colors = get_color_map(len(prompt_points))
             for i, points in enumerate(prompt_points):
                 color = colors[i]
                 points = np.array(points)
-                axes[0].scatter(points[:, 0], points[:, 1], c=[color], s=200, marker='*', edgecolor='white',
+                axes[0].scatter(points[:, 0], points[:, 1], c='green', s=200, marker='*', edgecolor='white',
                                 linewidth=1.25)
         axes[0].axis('off')
 

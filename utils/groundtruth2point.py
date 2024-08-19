@@ -148,9 +148,9 @@ def sample_points_from_pixel_mask( gt_mask, num_points=2, include_center=True, u
             for i in range(1, num_features + 1):
                 object_mask = (labeled_mask == i)
                 area = np.sum(object_mask)
-                print(f"area {color_id}, color{color}, obj {i} pixel, {area} ")
+                # print(f"area {color_id}, color{color}, obj {i} pixel, {area} ")
                 if area < area_threshold:
-                    print(f"area {color_id} removed")
+                    # print(f"area {color_id} removed")
                     continue
 
                 points = []
