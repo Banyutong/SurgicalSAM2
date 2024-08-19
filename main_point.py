@@ -209,8 +209,8 @@ def main(args):
 
 		add_positive_points_(predictor, inference_state, prompt_frame_index, merged_prompt_points)
 
-		negative_points, negative_classes = generate_negative_samples(sampled_point_classes, prompt_points, args.negative_sample_points)
-		add_negative_points_(predictor, inference_state, prompt_frame_index, negative_points)
+		# negative_points, negative_classes = generate_negative_samples(sampled_point_classes, prompt_points, args.negative_sample_points)
+		# add_negative_points_(predictor, inference_state, prompt_frame_index, negative_points)
 	else:
 		add_positive_points_(predictor, inference_state, prompt_frame_index, sampled_points)
 		class_to_color_mapper=None
@@ -241,7 +241,7 @@ def main(args):
 	save_pixel_masks(video_segments, args.output_dir)
 	coco_annotations, coco_images = create_coco_annotations(video_segments, frame_names)
 	object_colors = get_color_map(len(sampled_points))
-	save_visualizations(video_segments, frame_names, args.video_dir, args.output_dir, object_colors, args.vis_frame_stride)
+	#save_visualizations(video_segments, frame_names, args.video_dir, args.output_dir, object_colors, args.vis_frame_stride)
 	save_coco_json(coco_annotations, coco_images, len(sampled_points), args.output_dir)
 
 	print(f"Results saved in {args.output_dir}")
