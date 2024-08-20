@@ -21,6 +21,28 @@ sudo apt install ffmpeg
 pip install ffmpeg-python
 ```
 
+### Update Log
+- **8.18:** Added support for using bounding boxes directly as ground truth in `main_bbox.py`.
+- **8.19:** Implemented negative points sampling for pixel masks in `main_point.py` (for pixel mask only).
+- **8.20:** Added support for negative points visualization for pixel masks in `main_point.py` (for pixel mask only).
+
+### Updated Examples
+
+#### For Pixel Mask Sampling
+
+```bash
+python main_point.py --sampled_points 2 --negative_sample_points 1 --video_dir examples/video_pixel2/frames --sam2_checkpoint checkpoints/sam2_hiera_large.pt --output_dir test_negative_output --gt_path examples/video_pixel2/0_mask.png --gt_type pixel_mask
+```
+
+- `--sampled_points`: Determines how many positive points to sample.
+- `--negative_sample_points`: Determines how many negative points to sample (a class's sampled negative points are near the other-class sampled points).
+
+#### For Bounding Box as Ground Truth
+
+```bash
+python main_bbox.py --video_dir examples/video_mask/frames --sam2_checkpoint checkpoints/sam2_hiera_large.pt --output_dir bbox_output --gt_path examples/video_mask/annotation_coco_vid.json
+```
+
 
 # Usage: Mask Prompts
 
