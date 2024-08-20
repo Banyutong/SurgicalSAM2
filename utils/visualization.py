@@ -141,7 +141,7 @@ def visualize_first_frame_comprehensive(image, first_valid_gt, sampled_points, p
 
             # Plot sampled points
             points = np.array(points)
-            ax2.scatter(points[:, 0], points[:, 1], c=[color], s=100, marker='*')
+            ax2.scatter(points[:, 0], points[:, 1], c=[color], s=MARKER_SIZE, marker='*')
 
     ax2.set_title(f"Ground Truth ({gt_type.capitalize()}) and Point Prompts")
     ax2.axis('off')
@@ -209,6 +209,7 @@ def visualize_all_frames(video_segments, frame_names, video_dir, output_dir, gt_
         )
     print(f"All frame visualizations saved to {vis_dir}")
 
+MARKER_SIZE = 200
 MARKER_LIST  = [
     '*',  # star
     'o',  # circle
@@ -271,9 +272,9 @@ def visualize_frame(current_frame, prompt_frame_gt, ground_truth, prediction, ou
                     marker_color = 'green'
                     points = np.array(points)
                     if points.ndim == 1:
-                        axes[0].scatter(points[0], points[1], c=marker_color, s=100, marker=marker, alpha=0.7)
+                        axes[0].scatter(points[0], points[1], c=marker_color, s=MARKER_SIZE, marker=marker, alpha=0.7)
                     else:
-                        axes[0].scatter(points[:, 0], points[:, 1], c=marker_color, s=100, marker=marker, alpha=0.7)
+                        axes[0].scatter(points[:, 0], points[:, 1], c=marker_color, s=MARKER_SIZE, marker=marker, alpha=0.7)
             else:
                 for i, points in enumerate(prompt_points):
                     label = point_positive_or_negative_labels[i]
@@ -283,9 +284,9 @@ def visualize_frame(current_frame, prompt_frame_gt, ground_truth, prediction, ou
                     marker_color = 'green' if label==1 else 'red'
                     points = np.array(points)
                     if points.ndim == 1:
-                        axes[0].scatter(points[0], points[1], c=marker_color, s=100, marker=marker, alpha=0.7)#, edgecolor=color, linewidth=1.25)
+                        axes[0].scatter(points[0], points[1], c=marker_color, s=MARKER_SIZE, marker=marker, alpha=0.7)#, edgecolor=color, linewidth=1.25)
                     else:
-                        axes[0].scatter(points[:, 0], points[:, 1], c=marker_color, s=100, marker=marker, alpha=0.7)
+                        axes[0].scatter(points[:, 0], points[:, 1], c=marker_color, s=MARKER_SIZE, marker=marker, alpha=0.7)
         axes[0].set_title("Prompt Frame")
         axes[0].axis('off')
 

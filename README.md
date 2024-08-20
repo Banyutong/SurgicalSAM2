@@ -27,6 +27,7 @@ pip install ffmpeg-python
 - **8.20:** Added support for negative points visualization for pixel masks in `main_point.py` (for pixel mask only).
 
 ### Updated Examples
+Refer [https://sjtu.feishu.cn/docx/Q8YBd1VAOo0e8YxUe4Zcs5f9nYf](https://sjtu.feishu.cn/docx/Q8YBd1VAOo0e8YxUe4Zcs5f9nYf) for the results.
 
 #### For Pixel Mask Sampling
 
@@ -36,12 +37,14 @@ python main_point.py --sampled_points 2 --negative_sample_points 1 --video_dir e
 
 - `--sampled_points`: Determines how many positive points to sample.
 - `--negative_sample_points`: Determines how many negative points to sample (a class's sampled negative points are near the other-class sampled points).
+  - You can change the `beta` to decide how near it is in `utils/negative_helpers.py` in `generate_negative_samples(sampled_point_classes, sampled_points, n, height, width, beta)`.
 
 #### For Bounding Box as Ground Truth
 
 ```bash
 python main_bbox.py --video_dir examples/video_mask/frames --sam2_checkpoint checkpoints/sam2_hiera_large.pt --output_dir bbox_output --gt_path examples/video_mask/annotation_coco_vid.json
 ```
+
 
 
 # Usage: Mask Prompts
