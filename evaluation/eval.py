@@ -248,15 +248,8 @@ def eval(predict_path, coco_path, output_path):
 
 if __name__ == "__main__":
 
-    cocoGT = COCO("coco_annotations.json")
-    cocoDT = cocoGT.loadRes("output/bbox/predict.json")
-    output_path = "output/bbox/eval.pkl"
-
-    CAT_IDS = cocoGT.getCatIds()
-
-    video_id_set, img_scores = get_image_scores(cocoDT, cocoGT)
-    video_scores = get_video_scores(video_id_set, img_scores)
-    result = get_result(video_scores)
-
-    with open(output_path, "wb") as f:
-        pickle.dump(result, f)
+    eval(
+        predict_path="/bd_byta6000i0/users/sam2/kyyang/sam2_predict/test/output/points/predict.json",
+        coco_path="coco_annotations.json",
+        output_path="test/output/points/",
+    )

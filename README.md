@@ -151,14 +151,74 @@ python main_point.py --video_dir examples/video_pixel  --sam2_checkpoint checkpo
 ```
 
 
-# Completed Pipeline on Endoscapes2023 Dataset
-See `SurgicalSAM2/Endoscapes2023_Pipeline` for details.
+## Work in COCO Style
+### Convert pixel mask to COCO format
+see the `example_COCO_on_CholecSeg8k/convert.ipynb` for step-by-step guide.
+### Completed Pipeline on Endoscapes2023 Dataset
 
--  `Endoscapes2023_Pipeline/point_prompt.ipynb` provides a step-by-step guide on how to use point prompts for segmentation within the Endoscapes2023 dataset. Additionally, it showcases the process of generating point prompts directly from ground truth masks.
-- `Endoscapes2023_Pipeline/main.py` demonstrates how to batch process videos.
--  `Endoscapes2023_Pipeline/endoscapes_video.json` contains the information for the batch processing.
+Once you have the COCO format, you can technically use all the functions implemented under the `Endoscapes2023_Pipeline` folder.
+
+It now contains the following files:
+
+#### `inference.py`
+It has the following features:
+- [x] Supports multiple video processing as long as the COCO format file is generated based on the `example_COCO_on_CholecSeg8k/convert.ipynb` notebook.
+- [x]  Supports multiple prompt types, including `points`, `bbox` and `mask`.
+- [x]  Automatically tracks different objects in the same category, even if they are in the same mask.
+- [x]  Supports re-intialization for every `clip_length` frames.
+- [x]  Supports re-intialization when new categories are detected.
+- [x]  Automatically find the first frame with valid ground truth.
+
+Now let's see how to use it.
+```python
+if __name__ == "__main__":
+    inference(
+        coco_path="coco_annotations.json",
+        output_path="./",
+        prompt_type="points",
+        clip_length=None,
+        variable_cats=False,
+        save_video_list=None,
+    )
+```
+- `coco_path`: path to coco annotation file
+- `output_path`: path to output directory
+- `prompt_type`: type of prompts, either "points", "bbox" or "mask"
+- `clip_length`: length of each video segment to be processed. It will re-intialize every `clip_length` frames. If None, process the entire video as a single segment
+- `variable_cats`: whether to re-intialize when new categories are detected
+- `save_video_list`: list of video ids to be saved, if None, save all videos
+
+It will generate two files under the corresponding output directory:
+- `predict.json`: COCO format predictions
+- `prompt.pkl`: information for the prompts including the obejcts, frames, video ids, prompt types, etc.
+
+![alt text](img/infer.png)
+
+#### `eval.py`
+Once you get the predictions from the `inference.py`, you can evaluate the results with `eval.py`.
+
+```python
+if __name__ == "__main__":
+    eval(
+        predict_path="/bd_byta6000i0/users/sam2/kyyang/sam2_predict/test/output/points/predict.json",
+        coco_path="coco_annotations.json",
+        output_path="output/points/",
+    )
+```
+- `predict_path`: path to the predicted json file
+- `coco_path`: path to the coco annotation file
+- `output_path`: path to the output directory
+
+It will calculate the following metrics for each frame, category, and video, and the average score for each category and video:
+- `iou`: intersection over union
+- `mae`: mean absolute error
+- `dice`: dice score
+
+It will generate a `eval.pkl` file under the corresponding output directory, whhich contains the evaluation results. 
+![alt text](img/eval.png)
+
 ## Evaluation
-The folder `Evaluation` contains different metric for different datasets. See `utils.py` for details.
+The folder `evaluation` contains different metric for different datasets. See `utils.py` for details.
 
 |    Dataset    |          Metric           |
 | :-----------: | :-----------------------: |
