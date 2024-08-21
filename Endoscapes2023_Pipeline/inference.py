@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 from typing import List, Dict, TypedDict, NamedTuple, Generator, Tuple, Set
-
+import random
 from PIL import Image
 from utils import (
     show_mask,
@@ -39,7 +39,7 @@ from sam2.build_sam import build_sam2_video_predictor
 
 # Path to the SAM2 checkpoint and model configuration
 sam2_checkpoint = (
-    "/bd_byta6000i0/users/sam2/kyyang/SurgicalSAM2/checkpoints/sam2_hiera_tiny.pt"
+    "/data/proj/SurgicalSAM2/checkpoints/sam2_hiera_tiny.pt"
 )
 model_cfg = "sam2_hiera_t.yaml"
 
@@ -187,8 +187,72 @@ def create_symbol_link_for_video(frames_info):
 
     return video_dir
 
+def fluctuate_point(point, beta, width, height):
+    x, y = point
+    dx = random.uniform(-beta, beta)
+    dy = random.uniform(-beta, beta)
 
-def get_each_obj(prompt_frame, num_points=1, cats: Set[int] = None):
+    new_x = max(0, min(width - 1, x + dx))
+    new_y = max(0, min(height - 1, y + dy))
+
+    return [int(new_x), int(new_y)]
+
+def generate_negative_samples(sampled_points, sampled_point_classes, n, height, width, beta):
+    sampled_points = flatten_outer_list(sampled_points)
+    sampled_point_classes = flatten_outer_list(sampled_point_classes)
+    class_to_points = {}
+    for cls, point in zip(sampled_point_classes, sampled_points):
+        if cls not in class_to_points:
+            class_to_points[cls] = []
+        class_to_points[cls].append(point)
+
+    negative_sampled_points = []
+    negative_sampled_point_classes = []
+
+    for cls in set(sampled_point_classes):
+        other_points = [p for c, p in zip(sampled_point_classes, sampled_points) if c != cls]
+
+        class_negative_samples = []
+        class_negative_classes = []
+
+        for _ in range(n):
+            sampled_point = random.choice(other_points)
+            fluctuated_point = fluctuate_point(sampled_point, beta, width, height)
+            class_negative_samples.append(fluctuated_point)
+
+            # Instead of sampling another class, we record the current class
+            class_negative_classes.append(cls)
+
+        negative_sampled_points.append(class_negative_samples)
+        negative_sampled_point_classes.append(class_negative_classes)
+
+    return negative_sampled_points, negative_sampled_point_classes
+
+def flatten_outer_list(nested_list):
+    return [item for sublist in nested_list for item in sublist]
+
+
+def merge_point_lists(all_pos_points, negative_points):
+    if len(all_pos_points) != len(negative_points):
+        raise ValueError("Input lists must have the same length")
+
+    merged_points = []
+    pos_or_neg_labels = []
+
+    for pos_points, neg_points in zip(all_pos_points, negative_points):
+        # Correctly combine points by extending a new list
+        all_points = []
+        all_points.extend(pos_points)
+        all_points.extend(neg_points)
+        merged_points.append(all_points)
+
+        # Create labels list
+        labels = [1] * len(pos_points) + [0] * len(neg_points)
+        pos_or_neg_labels.append(labels)
+
+    return merged_points, pos_or_neg_labels
+
+def get_each_obj(prompt_frame, num_points=2,  cats: Set[int] = None, num_neg_points=2, beta=0):
     """
     Extract objects from the prompt frame.
 
@@ -204,23 +268,44 @@ def get_each_obj(prompt_frame, num_points=1, cats: Set[int] = None):
     ann_ids = COCO_INFO.getAnnIds(imgIds=prompt_frame["id"])
     anns = COCO_INFO.loadAnns(ann_ids)
     num_cat = len(COCO_INFO.cats)
-
     objs = []
+    all_pos_points = []
+    all_pos_cats = []
+    all_mask = []
+    all_bbox = []
+    all_obj_id = []
+    img_info = COCO_INFO.loadImgs(prompt_frame["id"])[0]
+    height, width = img_info['height'], img_info['width']
     for ann in anns:
         if cats is not None and ann["category_id"] not in cats:
             continue
         rle = ann["segmentation"]
+        cat_id = ann["category_id"]
         mask = maskUtils.decode(rle)  # 将RLE解码为二进制掩码
         masks = mask_to_masks(mask)
         for mask in masks:
-            obj = {
-                "mask": mask,
-                "bbox": mask_to_bbox(mask),
-                "points": mask_to_points(mask, num_points),
-                "obj_id": OBJ_COUNT * (num_cat + 1) + ann["category_id"],
-            }
-            objs.append(obj)
+            pos_points = mask_to_points(mask, num_points)
+            all_pos_points.append(pos_points)
+            pos_classes = [cat_id] * num_points
+            all_pos_cats.append(pos_classes)
+            all_mask.append(mask)
+            all_bbox.append(mask)
+            all_obj_id.append(OBJ_COUNT * (num_cat + 1) + ann["category_id"])
             OBJ_COUNT += 1
+
+    negative_points, negative_point_cats = generate_negative_samples(all_pos_points, all_pos_cats,
+                                                                        num_neg_points, height, width,
+                                                                        beta=beta)
+    all_points, positive_or_negative_labels_lists = merge_point_lists(all_pos_points, negative_points)
+    for i, (mask, bbox, obj_id, points, pos_or_neg_label) in enumerate(zip(all_mask, all_bbox, all_obj_id, all_points, positive_or_negative_labels_lists)):
+        obj = {
+            "mask": mask,
+            "bbox": bbox,
+            "points": points,
+            "obj_id": obj_id,
+            "pos_or_neg_label": pos_or_neg_label
+        }
+        objs.append(obj)
 
     return objs
 
@@ -705,7 +790,7 @@ if __name__ == "__main__":
     # global OUTPUT_PATH
 
     inference(
-        coco_path="coco_annotations.json",
+        coco_path="/bd_byta6000i0/users/dataset/MedicalImage/Endoscapes2023/raw/train_seg/coco_annotations.json",
         output_path="./test",
         prompt_type="points",
         clip_length=None,
