@@ -179,13 +179,15 @@ def create_symbol_link_for_video(frames_info):
         str: Path to the temporary directory.
     """
     video_dir = tempfile.mkdtemp()
+    current_dir = os.getcwd()
 
     for idx, frame in enumerate(frames_info):
         frame_name = str(idx).zfill(8)  # 填充到5位宽度
         dst_path = os.path.join(video_dir, f"{frame_name}.jpg")
-        src_path = frame["path"]
+        src_path = os.path.join(current_dir, frame["path"])
         os.symlink(src_path, dst_path)
-
+        # ic(src_path)
+    # ic(video_dir)
     return video_dir
 
 
@@ -709,7 +711,7 @@ if __name__ == "__main__":
     # global OUTPUT_PATH
 
     inference(
-        coco_path="coco_annotations.json",
+        coco_path="sample_annotations.json",
         output_path="./test",
         prompt_type="points",
         clip_length=None,
