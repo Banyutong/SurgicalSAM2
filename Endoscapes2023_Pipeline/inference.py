@@ -39,7 +39,7 @@ from sam2.build_sam import build_sam2_video_predictor
 
 # Path to the SAM2 checkpoint and model configuration
 sam2_checkpoint = (
-    "/data/proj/SurgicalSAM2/checkpoints/sam2_hiera_tiny.pt"
+    "/bd_byta6000i0/users/sam2/kyyang/SurgicalSAM2/checkpoints/sam2_hiera_tiny.pt"
 )
 model_cfg = "sam2_hiera_t.yaml"
 
@@ -70,6 +70,7 @@ class PromptInfo(TypedDict):
     frame_idx: int
     prompt_type: str
     video_id: str
+    path: str
 
 
 class ClipRange(NamedTuple):
@@ -178,14 +179,16 @@ def create_symbol_link_for_video(frames_info):
         str: Path to the temporary directory.
     """
     video_dir = tempfile.mkdtemp()
+    current_dir = os.getcwd()
 
     for idx, frame in enumerate(frames_info):
         frame_name = str(idx).zfill(8)  # 填充到5位宽度
         dst_path = os.path.join(video_dir, f"{frame_name}.jpg")
-        src_path = frame["path"]
+        src_path = os.path.join(current_dir, frame["path"])
         os.symlink(src_path, dst_path)
 
     return video_dir
+
 
 def fluctuate_point(point, beta, width, height):
     x, y = point
@@ -197,7 +200,10 @@ def fluctuate_point(point, beta, width, height):
 
     return [int(new_x), int(new_y)]
 
-def generate_negative_samples(sampled_points, sampled_point_classes, n, height, width, beta):
+
+def generate_negative_samples(
+    sampled_points, sampled_point_classes, n, height, width, beta
+):
     sampled_points = flatten_outer_list(sampled_points)
     sampled_point_classes = flatten_outer_list(sampled_point_classes)
     class_to_points = {}
@@ -210,7 +216,9 @@ def generate_negative_samples(sampled_points, sampled_point_classes, n, height, 
     negative_sampled_point_classes = []
 
     for cls in set(sampled_point_classes):
-        other_points = [p for c, p in zip(sampled_point_classes, sampled_points) if c != cls]
+        other_points = [
+            p for c, p in zip(sampled_point_classes, sampled_points) if c != cls
+        ]
 
         class_negative_samples = []
         class_negative_classes = []
@@ -227,6 +235,7 @@ def generate_negative_samples(sampled_points, sampled_point_classes, n, height, 
         negative_sampled_point_classes.append(class_negative_classes)
 
     return negative_sampled_points, negative_sampled_point_classes
+
 
 def flatten_outer_list(nested_list):
     return [item for sublist in nested_list for item in sublist]
@@ -252,7 +261,10 @@ def merge_point_lists(all_pos_points, negative_points):
 
     return merged_points, pos_or_neg_labels
 
-def get_each_obj(prompt_frame, num_points=2,  cats: Set[int] = None, num_neg_points=2, beta=0):
+
+def get_each_obj(
+    prompt_frame, num_points=2, cats: Set[int] = None, num_neg_points=2, beta=0
+):
     """
     Extract objects from the prompt frame.
 
@@ -275,7 +287,7 @@ def get_each_obj(prompt_frame, num_points=2,  cats: Set[int] = None, num_neg_poi
     all_bbox = []
     all_obj_id = []
     img_info = COCO_INFO.loadImgs(prompt_frame["id"])[0]
-    height, width = img_info['height'], img_info['width']
+    height, width = img_info["height"], img_info["width"]
     for ann in anns:
         if cats is not None and ann["category_id"] not in cats:
             continue
@@ -293,17 +305,27 @@ def get_each_obj(prompt_frame, num_points=2,  cats: Set[int] = None, num_neg_poi
             all_obj_id.append(OBJ_COUNT * (num_cat + 1) + ann["category_id"])
             OBJ_COUNT += 1
 
-    negative_points, negative_point_cats = generate_negative_samples(all_pos_points, all_pos_cats,
-                                                                        num_neg_points, height, width,
-                                                                        beta=beta)
-    all_points, positive_or_negative_labels_lists = merge_point_lists(all_pos_points, negative_points)
-    for i, (mask, bbox, obj_id, points, pos_or_neg_label) in enumerate(zip(all_mask, all_bbox, all_obj_id, all_points, positive_or_negative_labels_lists)):
+    negative_points, negative_point_cats = generate_negative_samples(
+        all_pos_points, all_pos_cats, num_neg_points, height, width, beta=beta
+    )
+    all_points, positive_or_negative_labels_lists = merge_point_lists(
+        all_pos_points, negative_points
+    )
+    for i, (mask, bbox, obj_id, points, pos_or_neg_label) in enumerate(
+        zip(
+            all_mask,
+            all_bbox,
+            all_obj_id,
+            all_points,
+            positive_or_negative_labels_lists,
+        )
+    ):
         obj = {
             "mask": mask,
             "bbox": bbox,
             "points": points,
             "obj_id": obj_id,
-            "pos_or_neg_label": pos_or_neg_label
+            "pos_or_neg_label": pos_or_neg_label,
         }
         objs.append(obj)
 
@@ -365,7 +387,7 @@ def add_prompt(
                     frame_idx=prompt_frame_order_in_video,
                     obj_id=obj["obj_id"],
                     points=obj["points"],
-                    labels=np.ones(len(obj["points"])),
+                    labels=obj["pos_or_neg_label"],
                 )
             case "bbox":
                 _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
@@ -519,6 +541,7 @@ def get_clip_prompts(frames, prompt_type, clip_length: int = None):
                 frame_idx=prompt_frame["order_in_video"],
                 prompt_type=prompt_type,
                 video_id=str(prompt_frame["video_id"]),
+                path=prompt_frame["path"],
             )
         ], clip_range
 
@@ -578,6 +601,7 @@ def get_prompts_from_categories(frames):
             frame_idx=prompt_frame_idx,
             prompt_type=prompt_type,
             video_id=str(frame["video_id"]),
+            path=frame["path"],
         )
 
         if previous_prompt_info is None:
@@ -642,6 +666,7 @@ def process_singel_video(
                 frame_idx=clip_range.end_idx,
                 prompt_type=prompt_type,
                 video_id=str(frames[0]["video_id"]),
+                path=frames[clip_range.end_idx]["path"],
             )
 
     torch.cuda.empty_cache()
@@ -790,7 +815,7 @@ if __name__ == "__main__":
     # global OUTPUT_PATH
 
     inference(
-        coco_path="/bd_byta6000i0/users/dataset/MedicalImage/Endoscapes2023/raw/train_seg/coco_annotations.json",
+        coco_path="sample_annotations.json",
         output_path="./test",
         prompt_type="points",
         clip_length=None,
