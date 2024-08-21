@@ -70,6 +70,7 @@ class PromptInfo(TypedDict):
     frame_idx: int
     prompt_type: str
     video_id: str
+    path: str
 
 
 class ClipRange(NamedTuple):
@@ -434,6 +435,7 @@ def get_clip_prompts(frames, prompt_type, clip_length: int = None):
                 frame_idx=prompt_frame["order_in_video"],
                 prompt_type=prompt_type,
                 video_id=str(prompt_frame["video_id"]),
+                path=prompt_frame["path"],
             )
         ], clip_range
 
@@ -493,6 +495,7 @@ def get_prompts_from_categories(frames):
             frame_idx=prompt_frame_idx,
             prompt_type=prompt_type,
             video_id=str(frame["video_id"]),
+            path=frame["path"],
         )
 
         if previous_prompt_info is None:
@@ -557,6 +560,7 @@ def process_singel_video(
                 frame_idx=clip_range.end_idx,
                 prompt_type=prompt_type,
                 video_id=str(frames[0]["video_id"]),
+                path=frames[clip_range.end_idx]["path"],
             )
 
     torch.cuda.empty_cache()
