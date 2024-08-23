@@ -756,6 +756,6 @@ if __name__ == "__main__":
         output_path="./test",
         prompt_type="mask",
         clip_length=None,
-        variable_cats=True,
+        variable_cats=False,
         save_video_list=None,
     )

@@ -26,6 +26,21 @@ pip install ffmpeg-python
 - **8.19:** Implemented negative points sampling for pixel masks in `main_point.py` (for pixel mask only).
 - **8.20:** Added support for negative points visualization for pixel masks in `main_point.py` (for pixel mask only).
 
+* **8.24**
+    * bugs fixed:
+        * fix the bug that in `inference.py`. the modulo number is not correct before.
+        * fix the bug that in `inference.py`. the code now properly converts the mask to a bounding box.
+        * fix the bug that in `utils.py`. the code now can properly handle the case that the mask contains few points.
+        * fix the bug that in `convert.ipynb`. the code now won't create annotations with the same id.
+    * problems:
+        * the code now does not support using the `variable_cats` and `clip_length` at the same time. When you want to use `clip_length`, you need to set `variable_cats` to `False`.
+        * Using `variable_cats` will leading to worse results for unknown reasons. Guess it's because of the multiple frames prompting.
+    * Things you need to do:
+        * Rerun the `convert.ipynb` to generate the new annotations.
+
+
+
+
 ### Updated Examples
 Refer [https://sjtu.feishu.cn/docx/Q8YBd1VAOo0e8YxUe4Zcs5f9nYf](https://sjtu.feishu.cn/docx/Q8YBd1VAOo0e8YxUe4Zcs5f9nYf) for the results.
 
