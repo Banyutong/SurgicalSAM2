@@ -268,10 +268,16 @@ def visualize_frame(current_frame, prompt_frame_gt, ground_truth, prediction, ou
 		for out_obj_id, out_mask in prediction.items():
 			mask_image = show_mask_keep_color(out_mask, axes[3 + idx_offset], out_obj_id, class_to_color_mapper, transparent=0.7)
 	else:
+		axes[3 + idx_offset].imshow(current_frame)
+		class_to_color_mapper = create_class_to_color_mapper(20)
 		mask_image = np.zeros_like(current_frame[:, :, 0])
+		# for i, (out_obj_id, out_mask) in enumerate(prediction.items()):
+		# 	if i == 0:
+		# 		continue
+
+		# axes[3 + idx_offset].imshow(mask_image, cmap='tab20', alpha=0.7)
 		for out_obj_id, out_mask in prediction.items():
-			mask_image[out_mask] = out_obj_id
-		axes[3 + idx_offset].imshow(mask_image, cmap='tab20')
+			show_mask_keep_color(out_mask, axes[3 + idx_offset], out_obj_id, class_to_color_mapper, transparent=0.7)
 
 	axes[3 + idx_offset].set_title("Predicted Segmentation")
 	axes[3 + idx_offset].axis('off')
@@ -291,3 +297,22 @@ def get_color_map(num_classes):
 		rgb = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
 		colors.append(rgb)  # Keep as float values in range 0-1
 	return colors
+
+
+def create_class_to_color_mapper(num_classes):
+	# Get the tab20 colormap
+	cmap = plt.get_cmap('tab20')
+
+	# Create a mapping from class to color
+	class_to_color_mapper = {}
+	for i in range(num_classes):
+		# Get the color for this class
+		rgba = cmap(i / 20)  # Divide by 20 because tab20 has 20 colors
+
+		# Convert from 0-1 range to 0-255 range and drop the alpha channel
+		rgb = tuple(int(255 * x) for x in rgba[:3])
+
+		# Add to the dictionary
+		class_to_color_mapper[i] = rgb
+
+	return class_to_color_mapper

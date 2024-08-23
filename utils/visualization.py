@@ -40,14 +40,16 @@ def show_points(coords, labels, ax, marker_size=200):
                linewidth=1.25)
 
 
-def get_color_map(num_classes):
-    """Generate a color map for visualizing different objects."""
-    colors = []
-    for i in range(num_classes):
-        hue = i / num_classes
-        rgb = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
-        colors.append(rgb)  # Keep as float values in range 0-1
-    return colors
+# def get_color_map(num_classes):
+#     """Generate a color map for visualizing different objects."""
+#
+#     colors = []
+#     for i in range(num_classes):
+#         hue = i / num_classes
+#         rgb = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
+#         colors.append(rgb)  # Keep as float values in range 0-1
+#     colors = plt.get_cmap('tab20')
+#     return colors
 
 
 def ensure_color_range(color):
@@ -91,7 +93,10 @@ def get_color_map_255(num_classes):
         colors.append(tuple(int(c * 255) for c in rgb))
     return colors
 
-
+def get_color(obj_id):
+    hue = (obj_id * 0.618033988749895) % 1
+    rgb = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
+    return rgb
 def show_mask_keep_color(mask, ax, color_id, class_to_color_mapper, transparent=1.0):
 
     color = np.array([class_to_color_mapper[color_id][0] / 255.0, class_to_color_mapper[color_id][1] / 255.0, class_to_color_mapper[color_id][2] / 255.0,
@@ -152,10 +157,11 @@ def visualize_first_frame_comprehensive(image, first_valid_gt, sampled_points, p
         for out_obj_id, out_mask in prediction.items():
             show_mask_keep_color(out_mask, ax3, out_obj_id, class_to_color_mapper, transparent=0.7)
     else:
+        ax3.imshow(image)
         mask_image = np.zeros_like(image[:, :, 0])
         for out_obj_id, out_mask in prediction.items():
             mask_image[out_mask] = out_obj_id
-        ax3.imshow(mask_image, cmap='tab20')
+        ax3.imshow(mask_image, cmap='tab20', alpha=0.7)
     ax3.set_title("Predicted Segmentation")
     ax3.axis('off')
 
@@ -272,21 +278,26 @@ def visualize_frame(current_frame, prompt_frame_gt, ground_truth, prediction, ou
                     marker_color = 'green'
                     points = np.array(points)
                     if points.ndim == 1:
-                        axes[0].scatter(points[0], points[1], c=marker_color, s=MARKER_SIZE, marker=marker, alpha=0.7)
+                        axes[0].scatter(points[0], points[1], c=marker_color, s=MARKER_SIZE, marker=marker, alpha=1.0)
                     else:
                         axes[0].scatter(points[:, 0], points[:, 1], c=marker_color, s=MARKER_SIZE, marker=marker, alpha=0.7)
             else:
+                ALPHA = 0.9
                 for i, points in enumerate(prompt_points):
                     label = point_positive_or_negative_labels[i]
                     class_label = point_class_labels[i]
-                    marker = MARKER_LIST[class_label]
-                    # color = colors[i]
-                    marker_color = 'green' if label==1 else 'red'
+                    marker = 'o' if label == 1 else 'x'
+                    marker_color = colors[class_label]
+                    linewidth = 1.25 if label == 1 else 5
                     points = np.array(points)
                     if points.ndim == 1:
-                        axes[0].scatter(points[0], points[1], c=marker_color, s=MARKER_SIZE, marker=marker, alpha=0.7)#, edgecolor=color, linewidth=1.25)
+                        # axes[0].scatter(points[0], points[1], c=marker_color, s=MARKER_SIZE, marker=marker, alpha=0.7)#, edgecolor=color, linewidth=1.25)
+                        axes[0].scatter(points[0], points[1], c=marker_color, s=MARKER_SIZE, marker=marker,
+                                        alpha=ALPHA, linewidth=linewidth)
                     else:
-                        axes[0].scatter(points[:, 0], points[:, 1], c=marker_color, s=MARKER_SIZE, marker=marker, alpha=0.7)
+                        # axes[0].scatter(points[:, 0], points[:, 1], c=marker_color, s=MARKER_SIZE, marker=marker, alpha=0.7)
+                        axes[0].scatter(points[:, 0], points[:, 1], c=marker_color, s=MARKER_SIZE, marker=marker,
+                                        aalpha=ALPHA, linewidth=linewidth)
         axes[0].set_title("Prompt Frame")
         axes[0].axis('off')
 
@@ -320,6 +331,7 @@ def visualize_frame(current_frame, prompt_frame_gt, ground_truth, prediction, ou
     axes[2 + idx_offset].axis('off')
 
     # Prediction
+    TRANSPARENT=0.7
     if gt_type == 'pixel_mask':
         axes[3 + idx_offset].imshow(current_frame)
         for out_obj_id, out_mask in prediction.items():
@@ -328,7 +340,7 @@ def visualize_frame(current_frame, prompt_frame_gt, ground_truth, prediction, ou
         mask_image = np.zeros_like(current_frame[:, :, 0])
         for out_obj_id, out_mask in prediction.items():
             mask_image[out_mask] = out_obj_id
-        axes[3 + idx_offset].imshow(mask_image, cmap='tab20')
+        axes[3 + idx_offset].imshow(mask_image*TRANSPARENT, cmap='tab20')
 
     axes[3 + idx_offset].set_title("Predicted Segmentation")
     axes[3 + idx_offset].axis('off')
@@ -342,9 +354,11 @@ def visualize_frame(current_frame, prompt_frame_gt, ground_truth, prediction, ou
 
 def get_color_map(num_classes):
     """Generate a color map for visualizing different objects."""
-    colors = []
-    for i in range(num_classes):
-        hue = i / num_classes
-        rgb = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
-        colors.append(rgb)  # Keep as float values in range 0-1
-    return colors
+
+    # colors = []
+    # for i in range(num_classes):
+    #     hue = i / num_classes
+    #     rgb = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
+    #     colors.append(rgb)  # Keep as float values in range 0-1
+    colors = plt.get_cmap('tab20')
+    return colors.colors
