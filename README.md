@@ -36,8 +36,9 @@ pip install ffmpeg-python
         * the code now does not support using the `variable_cats` and `clip_length` at the same time. When you want to use `clip_length`, you need to set `variable_cats` to `False`.
         * Using `variable_cats` will leading to worse results for unknown reasons. Guess it's because of the multiple frames prompting.
     * Things you need to do:
-        * Rerun the `convert.ipynb` to generate the new annotations.
-
+        * rerun the `convert.ipynb` to generate the new annotations.
+    * TODO:
+        * add noise to prompts.
 
 
 
