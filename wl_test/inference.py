@@ -443,7 +443,6 @@ def predict_on_video(predictor, inference_state, start_idx):
 
     for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(
         inference_state,
-        
     ):
         video_segments[out_frame_idx + start_idx] = {
             out_obj_id: {
@@ -494,6 +493,8 @@ def process_video_clip(frames, clip_prompts: List[PromptInfo], clip_range: ClipR
         prompt_objs = prompt_info["prompt_objs"]
         prompt_frame_idx = prompt_info["frame_idx"] - start_idx
         prompt_type = prompt_info["prompt_type"]
+        if len(prompt_objs) == 0:
+            continue
         predictor, inference_state, out_obj_ids, out_mask_logits = add_prompt(
             prompt_objs,
             predictor,
@@ -751,7 +752,7 @@ if __name__ == "__main__":
     # global OUTPUT_PATH
 
     inference(
-        coco_path="gt_coco_annotations.json",
+        coco_path="gt1_coco_annotations.json",
         output_path="./test",
         prompt_type="mask",
         clip_length=None,
