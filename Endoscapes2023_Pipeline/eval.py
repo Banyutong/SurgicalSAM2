@@ -249,7 +249,7 @@ def eval(predict_path, coco_path, output_path):
 if __name__ == "__main__":
 
     eval(
-        predict_path="/bd_byta6000i0/users/sam2/kyyang/sam2_predict/test/output/points/predict.json",
-        coco_path="coco_annotations.json",
-        output_path="test/output/points/",
+        predict_path="/bd_byta6000i0/users/sam2/kyyang/SurgicalSAM2/Endoscapes2023_Pipeline/test/output/mask/predict.json",
+        coco_path="gt_coco_annotations.json",
+        output_path="test/output/mask/",
     )

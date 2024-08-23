@@ -617,8 +617,7 @@ def get_prompts_from_categories(frames):
             continue
 
         prompt_and_ranges.append(
-            [previous_prompt_info],
-            ClipRange(previous_start_idx, prompt_frame_idx),
+            ([previous_prompt_info], ClipRange(previous_start_idx, prompt_frame_idx)),
         )
         previous_prompt_info = prompt_info
         previous_start_idx = prompt_frame_idx
@@ -823,9 +822,9 @@ if __name__ == "__main__":
     # global OUTPUT_PATH
 
     inference(
-        coco_path="sample_annotations.json",
+        coco_path="gt_coco_annotations.json",
         output_path="./test",
-        prompt_type="points",
+        prompt_type="mask",
         clip_length=None,
         variable_cats=False,
         save_video_list=None,
