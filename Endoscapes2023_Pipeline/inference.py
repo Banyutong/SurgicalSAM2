@@ -55,6 +55,7 @@ OUTPUT_PATH = None
 VIDEO_ID_SET = set()
 COCO_INFO = None
 OBJ_COUNT = 0
+MOD = None
 
 ########################
 #
@@ -206,6 +207,7 @@ def generate_negative_samples(
 ):
     sampled_points = flatten_outer_list(sampled_points)
     sampled_point_classes = flatten_outer_list(sampled_point_classes)
+
     class_to_points = {}
     for cls, point in zip(sampled_point_classes, sampled_points):
         if cls not in class_to_points:
@@ -224,6 +226,8 @@ def generate_negative_samples(
         class_negative_classes = []
 
         for _ in range(n):
+            if len(other_points) == 0:
+                continue
             sampled_point = random.choice(other_points)
             fluctuated_point = fluctuate_point(sampled_point, beta, width, height)
             class_negative_samples.append(fluctuated_point)
@@ -286,23 +290,27 @@ def get_each_obj(
     all_mask = []
     all_bbox = []
     all_obj_id = []
-    img_info = COCO_INFO.loadImgs(prompt_frame["id"])[0]
+    img_info = COCO_INFO.loadImgs(prompt_frame["id"])[
+        0
+    ]  # convert list with one element to the element
     height, width = img_info["height"], img_info["width"]
     for ann in anns:
         if cats is not None and ann["category_id"] not in cats:
             continue
         rle = ann["segmentation"]
-        cat_id = ann["category_id"]
-        mask = maskUtils.decode(rle)  # 将RLE解码为二进制掩码
-        masks = mask_to_masks(mask)
+        raw_mask = maskUtils.decode(rle)  # 将RLE解码为二进制掩码
+        masks = mask_to_masks(raw_mask)
+
         for mask in masks:
+            obj_id = OBJ_COUNT * MOD + ann["category_id"]
+            # logger.info(f"num_points: {type(num_points)}")
             pos_points = mask_to_points(mask, num_points)
             all_pos_points.append(pos_points)
-            pos_classes = [cat_id] * num_points
+            pos_classes = [obj_id] * num_points
             all_pos_cats.append(pos_classes)
             all_mask.append(mask)
-            all_bbox.append(mask)
-            all_obj_id.append(OBJ_COUNT * (num_cat + 1) + ann["category_id"])
+            all_bbox.append(mask_to_bbox(mask))
+            all_obj_id.append(OBJ_COUNT * MOD + ann["category_id"])
             OBJ_COUNT += 1
 
     negative_points, negative_point_cats = generate_negative_samples(
@@ -380,6 +388,7 @@ def add_prompt(
         tuple: Updated predictor, inference state, object IDs, and mask logits.
     """
     for obj in prompt_objs:
+
         match prompt_type:
             case "points":
                 _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
@@ -483,11 +492,9 @@ def process_video_clip(frames, clip_prompts: List[PromptInfo], clip_range: ClipR
     inference_state = predictor.init_state(video_path=video_dir)
 
     for prompt_info in clip_prompts:
-
         prompt_objs = prompt_info["prompt_objs"]
         prompt_frame_idx = prompt_info["frame_idx"] - start_idx
         prompt_type = prompt_info["prompt_type"]
-
         predictor, inference_state, out_obj_ids, out_mask_logits = add_prompt(
             prompt_objs,
             predictor,
@@ -730,7 +737,7 @@ def save_as_coco_format(all_video_segments, save_video_list):
 
             ## merge the mask
             for key, mask_info in video_segments[frame["order_in_video"]].items():
-                remainder = key % (num_cat + 1)
+                remainder = key % MOD
                 m_mask = np.logical_or.reduce(
                     mask_info["mask"], axis=0
                 )  # 使用 mask_info['mask']
@@ -789,12 +796,13 @@ def inference(
     Returns:
         tuple: Paths to the saved prediction and prompt files.
     """
-    global OUTPUT_PATH, VIDEO_ID_SET, COCO_INFO
+    global OUTPUT_PATH, VIDEO_ID_SET, COCO_INFO, MOD
 
     OUTPUT_PATH = os.path.join(output_path, "output", prompt_type)
     os.makedirs(OUTPUT_PATH, exist_ok=True)
 
     COCO_INFO = COCO(coco_path)
+    MOD = max(COCO_INFO.getCatIds()) + 1
 
     img_ids = COCO_INFO.getImgIds()
     imgs = COCO_INFO.loadImgs(img_ids)
