@@ -138,6 +138,9 @@ def mask_to_points(mask, num_points=1):
     return sampled_points
 
 
+BG_IMAGE = np.zeros((100, 100), dtype=np.uint8)
+
+
 def mask_to_bbox(mask):
     """
     Extracts the bounding box from a binary mask.
@@ -174,12 +177,12 @@ MASK_TRANSFORM = transform = A.Compose(
 
 def add_noise_to_mask(obj: PromptObj):
     mask = obj["mask"]
-    image = np.zeros(mask.shape, dtype=np.uint8)
     mask = mask.astype(np.uint8)
-    transformed = MASK_TRANSFORM(image=image, mask=mask)
-    transformed_image = transformed["image"]
+    transformed = MASK_TRANSFORM(image=BG_IMAGE, mask=mask)
     transformed_mask = transformed["mask"]
     obj["mask"] = transformed_mask.astype(bool)
+    if obj["mask"].sum() == 0:
+        return None
     return obj
 
 
@@ -191,11 +194,20 @@ BBOX_TRANSFORM = A.Compose(
 
 def add_noise_to_bbox(obj: PromptObj):
     bbox = obj["bbox"]
-    image = np.zeros(obj["mask"].shape, dtype=np.uint8)
     bbox.append("bbox")
-    transformed = BBOX_TRANSFORM(image=image, bboxes=[bbox])
+    transformed = BBOX_TRANSFORM(image=BG_IMAGE, bboxes=[bbox])
     if len(transformed["bboxes"]) == 0:
         return None
     new_bbox = list(transformed["bboxes"][0])[:-1]
     obj["bbox"] = new_bbox
     return obj
+
+
+def add_noise_to_obj(obj: PromptObj, prompt_type: str):
+    global BG_IMAGE
+    if BG_IMAGE.shape != obj["mask"].shape:
+        BG_IMAGE = np.zeros(obj["mask"].shape, dtype=np.uint8)
+    if prompt_type == "mask":
+        return add_noise_to_mask(obj)
+    elif prompt_type == "bbox":
+        return add_noise_to_bbox(obj)

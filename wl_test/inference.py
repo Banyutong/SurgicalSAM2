@@ -24,12 +24,12 @@ from utils import (
     mask_to_masks,
     mask_to_bbox,
     mask_to_points,
+    add_noise_to_obj,
     PromptObj,
     PromptInfo,
     ClipRange,
 )
 from loguru import logger
-
 
 # Enable autocast for mixed precision on CUDA devices
 torch.autocast(device_type="cuda", dtype=torch.bfloat16).__enter__()
@@ -60,14 +60,14 @@ VIDEO_ID_SET = set()
 COCO_INFO = None
 OBJ_COUNT = 0
 MOD = None
+NOISED_PROMPT = False
+
 
 ########################
 #
 # initialize the global variables
 #
 ########################
-
-
 ################################################################################
 #
 # type definitions
@@ -125,7 +125,7 @@ def get_imgs(coco_info):
 ################################################################################
 
 
-def find_prompt_frames(frames, clip_range: ClipRange, variable_cats: bool = False):
+def find_prompt_frame(frames, clip_range: ClipRange):
     """
     Find the first frame within the clip range that has annotations.
 
@@ -139,28 +139,21 @@ def find_prompt_frames(frames, clip_range: ClipRange, variable_cats: bool = Fals
     clip_start = clip_range.start_idx
     clip_end = clip_range.end_idx
 
-    existing_cats = set()
-    prompts_frames = []
-    cats = []
-
     for frame in frames:
         if frame["is_det_keyframe"] == False:
             continue
+
         if frame["order_in_video"] < clip_start or frame["order_in_video"] > clip_end:
             continue
-        if get_num_categories(frame).issubset(existing_cats):
+
+        ann_ids = COCO_INFO.getAnnIds(imgIds=frame["id"])
+
+        if ann_ids == []:
             continue
 
-        diff_cats = get_num_categories(frame).difference(existing_cats)
-        existing_cats = existing_cats.union(diff_cats)
+        return frame
 
-        if variable_cats is False:
-            return [frame], [diff_cats]
-
-        prompts_frames.append(frame)
-        cats.append(diff_cats)
-
-    return prompts_frames, cats
+    return None
 
 
 def create_symbol_link_for_video(frames_info):
@@ -240,8 +233,6 @@ def flatten_outer_list(nested_list):
 
 
 def merge_point_lists(all_pos_points, negative_points):
-    # logger.info(f"all_pos_points: {len(all_pos_points)}")
-    # logger.info(f"negative_points: {len(negative_points)}")
     if len(all_pos_points) != len(negative_points):
         raise ValueError("Input lists must have the same length")
 
@@ -277,9 +268,9 @@ def get_each_obj(
         list: List of objects.
     """
     global OBJ_COUNT
-
     ann_ids = COCO_INFO.getAnnIds(imgIds=prompt_frame["id"])
     anns = COCO_INFO.loadAnns(ann_ids)
+    num_cat = len(COCO_INFO.cats)
     objs = []
     all_pos_points = []
     all_pos_cats = []
@@ -332,17 +323,8 @@ def get_each_obj(
             pos_or_neg_label=pos_or_neg_label,
         )
         objs.append(obj)
-        with open("bbox.pkl", "wb") as f:
-            pickle.dump(obj["bbox"], f)
-        with open("mask.pkl", "wb") as f:
-            pickle.dump(obj["mask"], f)
-        exit()
-    
+
     return objs
-
-
-def add_noise_to_prompt(obj: PromptObj, prompt_type: str):
-    pass
 
 
 def get_obj_from_masks(video_segment):
@@ -362,12 +344,16 @@ def get_obj_from_masks(video_segment):
 
         masks = mask_to_masks(np.squeeze(obj_seg["mask"], axis=0))
         for mask in masks:
-            obj = {
-                "mask": mask,
-                "bbox": mask_to_bbox(mask),
-                "points": mask_to_points(mask),
-                "obj_id": obj_id,
-            }
+            bbox = mask_to_bbox(mask)
+            points = mask_to_points(mask)
+            obj = PromptObj(
+                mask=mask,
+                bbox=bbox,
+                points=points,
+                obj_id=obj_id,
+                pos_or_neg_label=np.ones(len(points)),
+            )
+            objs.append(obj)
 
     return objs
 
@@ -393,7 +379,10 @@ def add_prompt(
         tuple: Updated predictor, inference state, object IDs, and mask logits.
     """
     for obj in prompt_objs:
-
+        if NOISED_PROMPT:
+            obj = add_noise_to_obj(obj, prompt_type)
+            if obj is None:
+                continue
         match prompt_type:
             case "points":
                 _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
@@ -436,9 +425,20 @@ def predict_on_video(predictor, inference_state, start_idx):
     """
     video_segments = {}
     # video_segments contains the per-frame segmentation results
-
     for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(
-        inference_state,
+        inference_state, reverse=True
+    ):
+        video_segments[out_frame_idx + start_idx] = {
+            out_obj_id: {
+                "mask": (out_mask_logits[i] > 0.0).cpu().numpy(),
+                "score": torch.sigmoid(out_mask_logits[i])
+                .max()
+                .item(),  # 使用 sigmoid 转换为概率，取最大值作为 score
+            }
+            for i, out_obj_id in enumerate(out_obj_ids)
+        }
+    for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(
+        inference_state
     ):
         video_segments[out_frame_idx + start_idx] = {
             out_obj_id: {
@@ -489,8 +489,6 @@ def process_video_clip(frames, clip_prompts: List[PromptInfo], clip_range: ClipR
         prompt_objs = prompt_info["prompt_objs"]
         prompt_frame_idx = prompt_info["frame_idx"] - start_idx
         prompt_type = prompt_info["prompt_type"]
-        if len(prompt_objs) == 0:
-            continue
         predictor, inference_state, out_obj_ids, out_mask_logits = add_prompt(
             prompt_objs,
             predictor,
@@ -498,7 +496,6 @@ def process_video_clip(frames, clip_prompts: List[PromptInfo], clip_range: ClipR
             prompt_frame_idx,
             prompt_type,
         )
-        # break
 
     video_segments = predict_on_video(predictor, inference_state, start_idx)
 
@@ -508,9 +505,7 @@ def process_video_clip(frames, clip_prompts: List[PromptInfo], clip_range: ClipR
     return video_segments
 
 
-def get_clip_prompts(
-    frames, prompt_type, clip_length: int = None, variable_cats: bool = False
-):
+def get_clip_prompts(frames, prompt_type, clip_length: int = None):
     """
     Generate clip prompts.
 
@@ -527,32 +522,29 @@ def get_clip_prompts(
 
     for start_idx in range(0, len(frames), clip_length):
 
-        prompts_info = []
-
         end_idx = min(start_idx + clip_length - 1, len(frames) - 1)
 
         clip_range = ClipRange(start_idx, end_idx)
 
-        prompts_frames, cats = find_prompt_frames(frames, clip_range, variable_cats)
+        prompt_frame = find_prompt_frame(frames, clip_range)
 
-        if len(prompts_frames) == 0:
+        if prompt_frame is None:
             logger.warning(
                 f"No prompt frame found for clip {clip_range} for video {frames[0]['video_id']}"
             )
             continue
 
-        for prompt_frame, cat in zip(prompts_frames, cats):
-            prompt_objs = get_each_obj(prompt_frame=prompt_frame, cats=cat)
-            prompt_info = PromptInfo(
+        prompt_objs = get_each_obj(prompt_frame)
+
+        yield [
+            PromptInfo(
                 prompt_objs=prompt_objs,
                 frame_idx=prompt_frame["order_in_video"],
                 prompt_type=prompt_type,
                 video_id=str(prompt_frame["video_id"]),
                 path=prompt_frame["path"],
             )
-            prompts_info.append(prompt_info)
-
-        yield prompts_info, clip_range
+        ], clip_range
 
 
 def get_num_categories(frame):
@@ -571,6 +563,65 @@ def get_num_categories(frame):
     for ann in anns:
         cat_set.add(ann["category_id"])
     return cat_set
+
+
+def get_prompts_from_categories(frames):
+    """
+    Generate prompts based on categories.
+
+    Args:
+        frames (list): List of frame information.
+
+    Returns:
+        list: List of prompt information and clip ranges.
+    """
+    existing_cats = set()
+    previous_start_idx = None
+    previous_prompt_info = None
+    prompt_and_ranges = []
+
+    for frame in frames:
+        if frame["is_det_keyframe"] == False:
+            continue
+        if get_num_categories(frame).issubset(existing_cats):
+            continue
+
+        diff_cats = get_num_categories(frame).difference(existing_cats)
+        existing_cats = existing_cats.union(diff_cats)
+
+        prompt_objs = get_each_obj(frame)
+
+        if prompt_objs is None:
+            continue
+
+        prompt_frame_idx = frame["order_in_video"]
+        prompt_type = "points"
+
+        prompt_info = PromptInfo(
+            prompt_objs=prompt_objs,
+            frame_idx=prompt_frame_idx,
+            prompt_type=prompt_type,
+            video_id=str(frame["video_id"]),
+            path=frame["path"],
+        )
+
+        if previous_prompt_info is None:
+            previous_prompt_info = prompt_info
+            previous_start_idx = prompt_frame_idx
+            continue
+
+        prompt_and_ranges.append(
+            ([previous_prompt_info], ClipRange(previous_start_idx, prompt_frame_idx)),
+        )
+        previous_prompt_info = prompt_info
+        previous_start_idx = prompt_frame_idx
+
+    if previous_start_idx != len(frames) - 1:
+        prompt_and_ranges.append(
+            ([previous_prompt_info], ClipRange(previous_start_idx, len(frames) - 1))
+        )
+
+    return prompt_and_ranges
 
 
 def process_singel_video(
@@ -593,13 +644,30 @@ def process_singel_video(
 
     video_segments = {}
 
-    gen_clip_prompts = get_clip_prompts(frames, prompt_type, clip_length, variable_cats)
+    previous_frame_mask_prompt: PromptInfo = None
+
+    if variable_cats:
+        gen_clip_prompts = get_prompts_from_categories(frames)
+    else:
+        gen_clip_prompts = get_clip_prompts(frames, prompt_type, clip_length)
 
     for clip_prompts, clip_range in gen_clip_prompts:
+
+        if variable_cats and previous_frame_mask_prompt is not None:
+            clip_prompts.append(previous_frame_mask_prompt)
 
         save_prompt_frame(clip_prompts)
         logger.info(clip_range)
         video_segments.update(process_video_clip(frames, clip_prompts, clip_range))
+
+        if variable_cats:
+            previous_frame_mask_prompt = PromptInfo(
+                prompt_objs=get_obj_from_masks(video_segments[clip_range.end_idx]),
+                frame_idx=clip_range.end_idx,
+                prompt_type=prompt_type,
+                video_id=str(frames[0]["video_id"]),
+                path=frames[clip_range.end_idx]["path"],
+            )
 
     torch.cuda.empty_cache()
     return video_segments
@@ -706,7 +774,13 @@ def save_as_coco_format(all_video_segments, save_video_list):
 
 
 def inference(
-    coco_path, output_path, prompt_type, clip_length, variable_cats, save_video_list
+    coco_path,
+    output_path,
+    prompt_type,
+    clip_length,
+    variable_cats,
+    save_video_list,
+    noised_prompt,
 ):
     """
     Perform inference on COCO dataset.
@@ -721,7 +795,8 @@ def inference(
     Returns:
         tuple: Paths to the saved prediction and prompt files.
     """
-    global OUTPUT_PATH, VIDEO_ID_SET, COCO_INFO, MOD
+    global OUTPUT_PATH, VIDEO_ID_SET, COCO_INFO, MOD, NOISED_PROMPT
+    NOISED_PROMPT = noised_prompt
 
     OUTPUT_PATH = os.path.join(output_path, "output", prompt_type)
     os.makedirs(OUTPUT_PATH, exist_ok=True)
@@ -754,4 +829,5 @@ if __name__ == "__main__":
         clip_length=None,
         variable_cats=False,
         save_video_list=None,
+        noised_prompt=False,
     )

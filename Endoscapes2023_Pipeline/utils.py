@@ -14,6 +14,38 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
+from loguru import logger
+from typing import List
+import random
+import albumentations as A
+from typing import List, Dict, TypedDict, NamedTuple, Generator, Tuple, Set
+
+
+class PromptObj(TypedDict):
+    """Typed dictionary for storing prompt object."""
+
+    mask: np.ndarray
+    bbox: List[float]
+    points: List[List[float]]
+    obj_id: int
+    pos_or_neg_label: List[int]
+
+
+class PromptInfo(TypedDict):
+    """Typed dictionary for storing prompt information."""
+
+    prompt_objs: List[Dict]
+    frame_idx: int
+    prompt_type: str
+    video_id: str
+    path: str
+
+
+class ClipRange(NamedTuple):
+    """Named tuple for storing clip range."""
+
+    start_idx: int
+    end_idx: int
 
 
 def show_mask(mask, ax, obj_id=None, random_color=True):
@@ -60,7 +92,7 @@ def show_box(box, ax):
 
 
 def mask_to_masks(mask: np.ndarray) -> list:
-    kernel = np.ones((3, 3), np.uint8)  # 可以调整核的大小来控制闭运算程度
+    kernel = np.ones((5, 5), np.uint8)  # 可以调整核的大小来控制闭运算程度
 
     # 对 mask 进行闭运算
     closed_mask = cv2.morphologyEx(mask.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
@@ -69,11 +101,13 @@ def mask_to_masks(mask: np.ndarray) -> list:
         closed_mask.astype(np.uint8)
     )
     binary_masks = []
-    # 遍历每个连通区域
+    min_area = 10  # 设置最小连通区域面积
     for i in range(1, num_labels):  # 从 1 开始，因为 0 表示背景
-        # 生成只包含当前连通区域的二值mask
-        binary_mask = labels == i
-        binary_masks.append(binary_mask)
+        area = stats[i, cv2.CC_STAT_AREA]
+        if area >= min_area:  # 过滤面积过小的连通区域
+            # 生成只包含当前连通区域的二值mask
+            binary_mask = labels == i
+            binary_masks.append(binary_mask)
 
     return binary_masks
 
@@ -94,6 +128,7 @@ def mask_to_points(mask, num_points=1):
         return center.reshape(1, -1)
 
     # 如果num_points大于1，从掩码中随机采样指定数量的点
+    # logger.info(f"points.shape: {points.shape}")
     if num_points > points.shape[0]:
         raise ValueError("num_points is greater than the number of points in the mask")
 
@@ -101,6 +136,9 @@ def mask_to_points(mask, num_points=1):
         np.random.choice(points.shape[0], num_points, replace=False)
     ]
     return sampled_points
+
+
+BG_IMAGE = np.zeros((100, 100), dtype=np.uint8)
 
 
 def mask_to_bbox(mask):
@@ -113,3 +151,63 @@ def mask_to_bbox(mask):
     xmin, ymin = np.min(pos[1]), np.min(pos[0])
     xmax, ymax = np.max(pos[1]), np.max(pos[0])
     return [float(xmin), float(ymin), float(xmax), float(ymax)]
+
+
+def dilate_mask(mask, **kwargs):
+    kernel_size = random.randrange(3, 21, 2)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
+    noised_mask = cv2.dilate(mask, kernel)
+    return noised_mask.astype(bool)
+
+
+def erode_mask(mask, **kwargs):
+    kernel_size = random.randrange(3, 21, 2)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
+    noised_mask = cv2.erode(mask, kernel)
+    return noised_mask.astype(bool)
+
+
+MASK_TRANSFORM = transform = A.Compose(
+    [
+        A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=10, p=0.5),
+        A.OneOf([A.Lambda(mask=dilate_mask), A.Lambda(mask=erode_mask)], p=0.5),
+    ]
+)
+
+
+def add_noise_to_mask(obj: PromptObj):
+    mask = obj["mask"]
+    mask = mask.astype(np.uint8)
+    transformed = MASK_TRANSFORM(image=BG_IMAGE, mask=mask)
+    transformed_mask = transformed["mask"]
+    obj["mask"] = transformed_mask.astype(bool)
+    if obj["mask"].sum() == 0:
+        return None
+    return obj
+
+
+BBOX_TRANSFORM = A.Compose(
+    [A.ShiftScaleRotate(shift_limit=0.3, scale_limit=0.5, rotate_limit=10, p=0.5)],
+    bbox_params=A.BboxParams(format="pascal_voc"),
+)
+
+
+def add_noise_to_bbox(obj: PromptObj):
+    bbox = obj["bbox"]
+    bbox.append("bbox")
+    transformed = BBOX_TRANSFORM(image=BG_IMAGE, bboxes=[bbox])
+    if len(transformed["bboxes"]) == 0:
+        return None
+    new_bbox = list(transformed["bboxes"][0])[:-1]
+    obj["bbox"] = new_bbox
+    return obj
+
+
+def add_noise_to_obj(obj: PromptObj, prompt_type: str):
+    global BG_IMAGE
+    if BG_IMAGE.shape != obj["mask"].shape:
+        BG_IMAGE = np.zeros(obj["mask"].shape, dtype=np.uint8)
+    if prompt_type == "mask":
+        return add_noise_to_mask(obj)
+    elif prompt_type == "bbox":
+        return add_noise_to_bbox(obj)

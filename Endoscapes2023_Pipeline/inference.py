@@ -24,6 +24,10 @@ from utils import (
     mask_to_masks,
     mask_to_bbox,
     mask_to_points,
+    add_noise_to_obj,
+    PromptObj,
+    PromptInfo,
+    ClipRange,
 )
 from loguru import logger
 
@@ -56,31 +60,14 @@ VIDEO_ID_SET = set()
 COCO_INFO = None
 OBJ_COUNT = 0
 MOD = None
+NOISED_PROMPT = False
+
 
 ########################
 #
 # initialize the global variables
 #
 ########################
-
-
-class PromptInfo(TypedDict):
-    """Typed dictionary for storing prompt information."""
-
-    prompt_objs: List[Dict]
-    frame_idx: int
-    prompt_type: str
-    video_id: str
-    path: str
-
-
-class ClipRange(NamedTuple):
-    """Named tuple for storing clip range."""
-
-    start_idx: int
-    end_idx: int
-
-
 ################################################################################
 #
 # type definitions
@@ -328,13 +315,13 @@ def get_each_obj(
             positive_or_negative_labels_lists,
         )
     ):
-        obj = {
-            "mask": mask,
-            "bbox": bbox,
-            "points": points,
-            "obj_id": obj_id,
-            "pos_or_neg_label": pos_or_neg_label,
-        }
+        obj = PromptObj(
+            mask=mask,
+            bbox=bbox,
+            points=points,
+            obj_id=obj_id,
+            pos_or_neg_label=pos_or_neg_label,
+        )
         objs.append(obj)
 
     return objs
@@ -357,13 +344,17 @@ def get_obj_from_masks(video_segment):
 
         masks = mask_to_masks(np.squeeze(obj_seg["mask"], axis=0))
         for mask in masks:
-            obj = {
-                "mask": mask,
-                "bbox": mask_to_bbox(mask),
-                "points": mask_to_points(mask),
-                "obj_id": obj_id,
-            }
+            bbox = mask_to_bbox(mask)
+            points = mask_to_points(mask)
+            obj = PromptObj(
+                mask=mask,
+                bbox=bbox,
+                points=points,
+                obj_id=obj_id,
+                pos_or_neg_label=np.ones(len(points)),
+            )
             objs.append(obj)
+
     return objs
 
 
@@ -388,7 +379,10 @@ def add_prompt(
         tuple: Updated predictor, inference state, object IDs, and mask logits.
     """
     for obj in prompt_objs:
-
+        if NOISED_PROMPT:
+            obj = add_noise_to_obj(obj, prompt_type)
+            if obj is None:
+                continue
         match prompt_type:
             case "points":
                 _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
@@ -780,7 +774,13 @@ def save_as_coco_format(all_video_segments, save_video_list):
 
 
 def inference(
-    coco_path, output_path, prompt_type, clip_length, variable_cats, save_video_list
+    coco_path,
+    output_path,
+    prompt_type,
+    clip_length,
+    variable_cats,
+    save_video_list,
+    noised_prompt,
 ):
     """
     Perform inference on COCO dataset.
@@ -795,7 +795,8 @@ def inference(
     Returns:
         tuple: Paths to the saved prediction and prompt files.
     """
-    global OUTPUT_PATH, VIDEO_ID_SET, COCO_INFO, MOD
+    global OUTPUT_PATH, VIDEO_ID_SET, COCO_INFO, MOD, NOISED_PROMPT
+    NOISED_PROMPT = noised_prompt
 
     OUTPUT_PATH = os.path.join(output_path, "output", prompt_type)
     os.makedirs(OUTPUT_PATH, exist_ok=True)
@@ -828,4 +829,5 @@ if __name__ == "__main__":
         clip_length=None,
         variable_cats=False,
         save_video_list=None,
+        noised_prompt=False,
     )
