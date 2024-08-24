@@ -21,31 +21,31 @@ import albumentations as A
 from typing import List, Dict, TypedDict, NamedTuple, Generator, Tuple, Set
 
 
-# class PromptObj(TypedDict):
-#     """Typed dictionary for storing prompt object."""
+class PromptObj(TypedDict):
+    """Typed dictionary for storing prompt object."""
 
-#     mask: np.ndarray
-#     bbox: List[float]
-#     points: List[List[float]]
-#     obj_id: int
-#     pos_or_neg_label: List[int]
-
-
-# class PromptInfo(TypedDict):
-#     """Typed dictionary for storing prompt information."""
-
-#     prompt_objs: List[Dict]
-#     frame_idx: int
-#     prompt_type: str
-#     video_id: str
-#     path: str
+    mask: np.ndarray
+    bbox: List[float]
+    points: List[List[float]]
+    obj_id: int
+    pos_or_neg_label: List[int]
 
 
-# class ClipRange(NamedTuple):
-#     """Named tuple for storing clip range."""
+class PromptInfo(TypedDict):
+    """Typed dictionary for storing prompt information."""
 
-#     start_idx: int
-#     end_idx: int
+    prompt_objs: List[Dict]
+    frame_idx: int
+    prompt_type: str
+    video_id: str
+    path: str
+
+
+class ClipRange(NamedTuple):
+    """Named tuple for storing clip range."""
+
+    start_idx: int
+    end_idx: int
 
 
 def show_mask(mask, ax, obj_id=None, random_color=True):
@@ -138,6 +138,9 @@ def mask_to_points(mask, num_points=1):
     return sampled_points
 
 
+BG_IMAGE = np.zeros((100, 100), dtype=np.uint8)
+
+
 def mask_to_bbox(mask):
     """
     Extracts the bounding box from a binary mask.
@@ -150,52 +153,61 @@ def mask_to_bbox(mask):
     return [float(xmin), float(ymin), float(xmax), float(ymax)]
 
 
-# def dilate_mask(mask, **kwargs):
-#     kernel_size = random.randrange(3, 21, 2)
-#     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
-#     noised_mask = cv2.dilate(mask, kernel)
-#     return noised_mask.astype(bool)
+def dilate_mask(mask, **kwargs):
+    kernel_size = random.randrange(3, 21, 2)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
+    noised_mask = cv2.dilate(mask, kernel)
+    return noised_mask.astype(bool)
 
 
-# def erode_mask(mask, **kwargs):
-#     kernel_size = random.randrange(3, 21, 2)
-#     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
-#     noised_mask = cv2.erode(mask, kernel)
-#     return noised_mask.astype(bool)
+def erode_mask(mask, **kwargs):
+    kernel_size = random.randrange(3, 21, 2)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
+    noised_mask = cv2.erode(mask, kernel)
+    return noised_mask.astype(bool)
 
 
-# MASK_TRANSFORM = transform = A.Compose(
-#     [
-#         A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=10, p=0.5),
-#         A.OneOf([A.Lambda(mask=dilate_mask), A.Lambda(mask=erode_mask)], p=0.5),
-#     ]
-# )
+MASK_TRANSFORM = transform = A.Compose(
+    [
+        A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=10, p=0.5),
+        A.OneOf([A.Lambda(mask=dilate_mask), A.Lambda(mask=erode_mask)], p=0.5),
+    ]
+)
 
 
-# def add_noise_to_mask(obj: PromptObj):
-#     mask = obj["mask"]
-#     image = np.zeros(mask.shape, dtype=np.uint8)
-#     mask = mask.astype(np.uint8)
-#     transformed = MASK_TRANSFORM(image=image, mask=mask)
-#     transformed_image = transformed["image"]
-#     transformed_mask = transformed["mask"]
-#     obj["mask"] = transformed_mask.astype(bool)
-#     return obj
+def add_noise_to_mask(obj: PromptObj):
+    mask = obj["mask"]
+    mask = mask.astype(np.uint8)
+    transformed = MASK_TRANSFORM(image=BG_IMAGE, mask=mask)
+    transformed_mask = transformed["mask"]
+    obj["mask"] = transformed_mask.astype(bool)
+    if obj["mask"].sum() == 0:
+        return None
+    return obj
 
 
-# BBOX_TRANSFORM = A.Compose(
-#     [A.ShiftScaleRotate(shift_limit=0.3, scale_limit=0.5, rotate_limit=10, p=0.5)],
-#     bbox_params=A.BboxParams(format="pascal_voc"),
-# )
+BBOX_TRANSFORM = A.Compose(
+    [A.ShiftScaleRotate(shift_limit=0.3, scale_limit=0.5, rotate_limit=10, p=0.5)],
+    bbox_params=A.BboxParams(format="pascal_voc"),
+)
 
 
-# def add_noise_to_bbox(obj: PromptObj):
-#     bbox = obj["bbox"]
-#     image = np.zeros(obj["mask"].shape, dtype=np.uint8)
-#     bbox.append("bbox")
-#     transformed = BBOX_TRANSFORM(image=image, bboxes=[bbox])
-#     if len(transformed["bboxes"]) == 0:
-#         return None
-#     new_bbox = list(transformed["bboxes"][0])[:-1]
-#     obj["bbox"] = new_bbox
-#     return obj
+def add_noise_to_bbox(obj: PromptObj):
+    bbox = obj["bbox"]
+    bbox.append("bbox")
+    transformed = BBOX_TRANSFORM(image=BG_IMAGE, bboxes=[bbox])
+    if len(transformed["bboxes"]) == 0:
+        return None
+    new_bbox = list(transformed["bboxes"][0])[:-1]
+    obj["bbox"] = new_bbox
+    return obj
+
+
+def add_noise_to_obj(obj: PromptObj, prompt_type: str):
+    global BG_IMAGE
+    if BG_IMAGE.shape != obj["mask"].shape:
+        BG_IMAGE = np.zeros(obj["mask"].shape, dtype=np.uint8)
+    if prompt_type == "mask":
+        return add_noise_to_mask(obj)
+    elif prompt_type == "bbox":
+        return add_noise_to_bbox(obj)
