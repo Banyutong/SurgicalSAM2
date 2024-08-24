@@ -752,7 +752,7 @@ if __name__ == "__main__":
     # global OUTPUT_PATH
 
     inference(
-        coco_path="gt1_coco_annotations.json",
+        coco_path="gt_coco_annotations.json",
         output_path="./test",
         prompt_type="mask",
         clip_length=None,

@@ -251,6 +251,6 @@ if __name__ == "__main__":
 
     eval(
         predict_path="/bd_byta6000i0/users/sam2/kyyang/SurgicalSAM2/wl_test/test/output/mask/predict.json",
-        coco_path="gt1_coco_annotations.json",
+        coco_path="gt_coco_annotations.json",
         output_path="test/output/bbox/",
     )
