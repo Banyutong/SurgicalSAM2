@@ -24,8 +24,12 @@ from utils import (
     mask_to_masks,
     mask_to_bbox,
     mask_to_points,
+    PromptObj,
+    PromptInfo,
+    ClipRange,
 )
 from loguru import logger
+
 
 # Enable autocast for mixed precision on CUDA devices
 torch.autocast(device_type="cuda", dtype=torch.bfloat16).__enter__()
@@ -62,23 +66,6 @@ MOD = None
 # initialize the global variables
 #
 ########################
-
-
-class PromptInfo(TypedDict):
-    """Typed dictionary for storing prompt information."""
-
-    prompt_objs: List[Dict]
-    frame_idx: int
-    prompt_type: str
-    video_id: str
-    path: str
-
-
-class ClipRange(NamedTuple):
-    """Named tuple for storing clip range."""
-
-    start_idx: int
-    end_idx: int
 
 
 ################################################################################
@@ -337,16 +324,25 @@ def get_each_obj(
             positive_or_negative_labels_lists,
         )
     ):
-        obj = {
-            "mask": mask,
-            "bbox": bbox,
-            "points": points,
-            "obj_id": obj_id,
-            "pos_or_neg_label": pos_or_neg_label,
-        }
+        obj = PromptObj(
+            mask=mask,
+            bbox=bbox,
+            points=points,
+            obj_id=obj_id,
+            pos_or_neg_label=pos_or_neg_label,
+        )
         objs.append(obj)
-
+        with open("bbox.pkl", "wb") as f:
+            pickle.dump(obj["bbox"], f)
+        with open("mask.pkl", "wb") as f:
+            pickle.dump(obj["mask"], f)
+        exit()
+    
     return objs
+
+
+def add_noise_to_prompt(obj: PromptObj, prompt_type: str):
+    pass
 
 
 def get_obj_from_masks(video_segment):
@@ -372,7 +368,7 @@ def get_obj_from_masks(video_segment):
                 "points": mask_to_points(mask),
                 "obj_id": obj_id,
             }
-            objs.append(obj)
+
     return objs
 
 
