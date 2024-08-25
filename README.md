@@ -45,7 +45,9 @@ pip install ffmpeg-python
         * forget to update the `utils.py` file in the `Endoscapes2023_Pipeline` folder in the previous version.
     * new features:
         * support noised prompts. You need to set `noised_prompt` to `True` in the `inference.py` file. For more details, please refer to the 'utils.py' file, and see the`add_noise_to_obj` function.
-    * Reorganize the code structure of the `inference.py` and `utils.py` files. 
+    * Reorganize the code structure of the `inference.py` and `utils.py` files.
+* **8.26**
+    * add experiments configurations and the corresponding processing scripts. See `ex.py` and `config.yaml` under `Endoscapes2023_Pipeline` for details.
 
 
 
