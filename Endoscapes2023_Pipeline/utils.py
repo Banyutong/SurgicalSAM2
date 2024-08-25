@@ -112,7 +112,7 @@ def mask_to_masks(mask: np.ndarray) -> list:
     return binary_masks
 
 
-def mask_to_points(mask, num_points=1):
+def mask_to_points(mask, num_points=0):
     # 确保mask是一个二值化的numpy数组
     if not isinstance(mask, np.ndarray) or mask.dtype != bool:
         print(type(mask))
@@ -122,7 +122,7 @@ def mask_to_points(mask, num_points=1):
     points = np.argwhere(mask)
     points = points[:, [1, 0]]
     # 如果num_points为1，返回掩码的中心点
-    if num_points == 1:
+    if num_points == 0:
         # 计算中心点
         center = np.mean(points, axis=0).astype(int)
         return center.reshape(1, -1)

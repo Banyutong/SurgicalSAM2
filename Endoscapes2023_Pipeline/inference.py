@@ -61,6 +61,7 @@ COCO_INFO = None
 OBJ_COUNT = 0
 MOD = None
 NOISED_PROMPT = False
+RAND_POINTS_NUM = 0
 
 
 ########################
@@ -253,15 +254,12 @@ def merge_point_lists(all_pos_points, negative_points):
     return merged_points, pos_or_neg_labels
 
 
-def get_each_obj(
-    prompt_frame, num_points=2, cats: Set[int] = None, num_neg_points=2, beta=0
-):
+def get_each_obj(prompt_frame, cats: Set[int] = None, num_neg_points=0, beta=0):
     """
     Extract objects from the prompt frame.
 
     Args:
         prompt_frame (dict): Information about the prompt frame.
-        num_points (int): Number of points to extract.
         cats (Set[int]): Set of category IDs to filter by.
 
     Returns:
@@ -291,9 +289,9 @@ def get_each_obj(
         for mask in masks:
             obj_id = OBJ_COUNT * MOD + ann["category_id"]
             # logger.info(f"num_points: {type(num_points)}")
-            pos_points = mask_to_points(mask, num_points)
+            pos_points = mask_to_points(mask, RAND_POINTS_NUM)
             all_pos_points.append(pos_points)
-            pos_classes = [obj_id] * num_points
+            pos_classes = [obj_id] * len(pos_points)
             all_pos_cats.append(pos_classes)
             all_mask.append(mask)
             all_bbox.append(mask_to_bbox(mask))
@@ -520,10 +518,12 @@ def get_clip_prompts(frames, prompt_type, clip_length: int = None):
     if clip_length is None:
         clip_length = len(frames)
 
+    current_clip_start = 0
+    current_clip_end = -1
+    current_clip_prompts = []
+
     for start_idx in range(0, len(frames), clip_length):
-
         end_idx = min(start_idx + clip_length - 1, len(frames) - 1)
-
         clip_range = ClipRange(start_idx, end_idx)
 
         prompt_frame = find_prompt_frame(frames, clip_range)
@@ -532,11 +532,16 @@ def get_clip_prompts(frames, prompt_type, clip_length: int = None):
             logger.warning(
                 f"No prompt frame found for clip {clip_range} for video {frames[0]['video_id']}"
             )
+            current_clip_end = end_idx  # Extend the current clip range
             continue
 
-        prompt_objs = get_each_obj(prompt_frame)
+        # If we found a prompt frame and we have a current clip that needs to be yielded
+        if current_clip_start <= current_clip_end:
+            yield current_clip_prompts, ClipRange(current_clip_start, current_clip_end)
+            current_clip_prompts = []  # Reset current clip prompts
 
-        yield [
+        prompt_objs = get_each_obj(prompt_frame)
+        current_clip_prompts.append(
             PromptInfo(
                 prompt_objs=prompt_objs,
                 frame_idx=prompt_frame["order_in_video"],
@@ -544,7 +549,13 @@ def get_clip_prompts(frames, prompt_type, clip_length: int = None):
                 video_id=str(prompt_frame["video_id"]),
                 path=prompt_frame["path"],
             )
-        ], clip_range
+        )
+        current_clip_start = start_idx  # Start a new clip
+        current_clip_end = end_idx
+
+    # Yield the last clip if it exists
+    if current_clip_start <= current_clip_end:
+        yield current_clip_prompts, ClipRange(current_clip_start, current_clip_end)
 
 
 def get_num_categories(frame):
@@ -694,7 +705,7 @@ def process_all_videos(prompt_type, clip_length, variable_cats):
         all_video_segments[video_id] = video_segments
         torch.cuda.empty_cache()
         free_memory, total_memory = torch.cuda.mem_get_info()
-        logger.info(f"free memory: {free_memory/1024**3:.2f} GB")
+        logger.info(f"free memory: {free_memory/1024**3:.2f} GB\n")
 
     return all_video_segments
 
@@ -781,6 +792,7 @@ def inference(
     variable_cats,
     save_video_list,
     noised_prompt,
+    rand_points_num,
 ):
     """
     Perform inference on COCO dataset.
@@ -795,10 +807,11 @@ def inference(
     Returns:
         tuple: Paths to the saved prediction and prompt files.
     """
-    global OUTPUT_PATH, VIDEO_ID_SET, COCO_INFO, MOD, NOISED_PROMPT
+    global OUTPUT_PATH, VIDEO_ID_SET, COCO_INFO, MOD, NOISED_PROMPT, RAND_POINTS_NUM
+    RAND_POINTS_NUM = rand_points_num
     NOISED_PROMPT = noised_prompt
 
-    OUTPUT_PATH = os.path.join(output_path, "output", prompt_type)
+    OUTPUT_PATH = os.path.join("output", prompt_type, output_path)
     os.makedirs(OUTPUT_PATH, exist_ok=True)
 
     COCO_INFO = COCO(coco_path)
@@ -809,6 +822,8 @@ def inference(
 
     for img in imgs:
         VIDEO_ID_SET.add(img["video_id"])
+
+    logger.add("output/log.log", enqueue=True)
 
     all_videos_segments = process_all_videos(prompt_type, clip_length, variable_cats)
 
@@ -823,11 +838,12 @@ if __name__ == "__main__":
     # global OUTPUT_PATH
 
     inference(
-        coco_path="gt_coco_annotations.json",
-        output_path="./test",
-        prompt_type="mask",
+        coco_path="coco_annotations.json",
+        output_path="./default",
+        prompt_type="points",
         clip_length=None,
         variable_cats=False,
         save_video_list=None,
         noised_prompt=False,
+        rand_points_num=0,
     )
