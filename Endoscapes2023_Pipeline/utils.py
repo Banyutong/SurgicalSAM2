@@ -21,6 +21,13 @@ import albumentations as A
 from typing import List, Dict, TypedDict, NamedTuple, Generator, Tuple, Set
 
 
+class ClipRange(NamedTuple):
+    """Named tuple for storing clip range."""
+
+    start_idx: int
+    end_idx: int
+
+
 class PromptObj(TypedDict):
     """Typed dictionary for storing prompt object."""
 
@@ -39,13 +46,7 @@ class PromptInfo(TypedDict):
     prompt_type: str
     video_id: str
     path: str
-
-
-class ClipRange(NamedTuple):
-    """Named tuple for storing clip range."""
-
-    start_idx: int
-    end_idx: int
+    clip_range: ClipRange
 
 
 def show_mask(mask, ax, obj_id=None, random_color=True):

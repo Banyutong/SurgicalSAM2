@@ -537,6 +537,10 @@ def get_clip_prompts(frames, prompt_type, clip_length: int = None):
 
         # If we found a prompt frame and we have a current clip that needs to be yielded
         if current_clip_start <= current_clip_end:
+            for prompt_info in current_clip_prompts:
+                prompt_info["clip_range"] = ClipRange(
+                    current_clip_start, current_clip_end
+                )
             yield current_clip_prompts, ClipRange(current_clip_start, current_clip_end)
             current_clip_prompts = []  # Reset current clip prompts
 
@@ -548,6 +552,7 @@ def get_clip_prompts(frames, prompt_type, clip_length: int = None):
                 prompt_type=prompt_type,
                 video_id=str(prompt_frame["video_id"]),
                 path=prompt_frame["path"],
+                clip_range=None,
             )
         )
         current_clip_start = start_idx  # Start a new clip
@@ -614,6 +619,7 @@ def get_prompts_from_categories(frames):
             prompt_type=prompt_type,
             video_id=str(frame["video_id"]),
             path=frame["path"],
+            clip_range=None,
         )
 
         if previous_prompt_info is None:
@@ -621,6 +627,9 @@ def get_prompts_from_categories(frames):
             previous_start_idx = prompt_frame_idx
             continue
 
+        previous_prompt_info["clip_range"] = ClipRange(
+            previous_start_idx, prompt_frame_idx
+        )
         prompt_and_ranges.append(
             ([previous_prompt_info], ClipRange(previous_start_idx, prompt_frame_idx)),
         )
@@ -628,6 +637,9 @@ def get_prompts_from_categories(frames):
         previous_start_idx = prompt_frame_idx
 
     if previous_start_idx != len(frames) - 1:
+        previous_prompt_info["clip_range"] = ClipRange(
+            previous_start_idx, len(frames) - 1
+        )
         prompt_and_ranges.append(
             ([previous_prompt_info], ClipRange(previous_start_idx, len(frames) - 1))
         )
@@ -665,6 +677,7 @@ def process_singel_video(
     for clip_prompts, clip_range in gen_clip_prompts:
 
         if variable_cats and previous_frame_mask_prompt is not None:
+            previous_frame_mask_prompt["clip_range"] = clip_range
             clip_prompts.append(previous_frame_mask_prompt)
 
         save_prompt_frame(clip_prompts)
@@ -678,6 +691,7 @@ def process_singel_video(
                 prompt_type=prompt_type,
                 video_id=str(frames[0]["video_id"]),
                 path=frames[clip_range.end_idx]["path"],
+                clip_range=None,
             )
 
     torch.cuda.empty_cache()
