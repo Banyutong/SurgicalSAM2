@@ -13,6 +13,10 @@ from utils.output_utils import save_pixel_masks, create_coco_annotations, save_v
 from utils.negative_helpers import add_all_points_, generate_negative_samples, merge_point_lists, flatten_outer_list
 from pycocotools.coco import COCO
 import random
+def parse_bool(value):
+    return int(value) > 0
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="SAM2 Video Segmentation")
     parser.add_argument('--video_dir', type=str, required=True, help='Directory containing video frames')
@@ -22,10 +26,13 @@ def parse_args():
     parser.add_argument('--gt_path', type=str, required=True, help='Path to ground truth data')
     parser.add_argument('--gt_type', type=str, choices=['bbox', 'mask', 'pixel_mask'], required=True,
                         help='Type of ground truth (bbox, mask, or pixel_mask)')
-    parser.add_argument('--sample_points', type=int, default=2, help='Number of points to sample for each object')
+    parser.add_argument('--sample_points', type=int, default=1, help='Number of points to sample for each object')
     # parser.add_argument('--use_negative_points', type=int, default=2,
     # 					help='Number of negative points to sample for each object')
-    parser.add_argument('--negative_sample_points', type=int, default=1, help='Number of negative points to sample for each object')
+    parser.add_argument('--negative_sample_points', type=int, default=0, help='Number of negative points to sample for each object')
+    # parser.add_argument('--include_center', action='store_true', help='Include the center if specified')
+    parser.add_argument('--include_center', type=parse_bool, default=False,
+                        help='Include the center: positive integer like 1 for True, 0 or negative for False')
     return parser.parse_args()
 
 def setup_environment():
@@ -47,7 +54,7 @@ def process_ground_truth(args, frame_names):
     if args.gt_type == 'pixel_mask':
         gt_data = process_gt_pixel_mask(frame_names, args.gt_path)
         gt_mask = np.array(Image.open(args.gt_path))
-        sampled_points = sample_points_from_pixel_mask(gt_mask, num_points=args.sample_points, include_center=True)
+        sampled_points = sample_points_from_pixel_mask(gt_mask, num_points=args.sample_points, include_center=args.include_center)
 
         return gt_data, sampled_points, 0  # Assuming the first frame is always valid for pixel_mask
 
@@ -89,7 +96,7 @@ def process_ground_truth(args, frame_names):
             sampled_points = sample_func(
                 frame_gt_data,
                 num_points=args.sample_points,
-                include_center=True
+                include_center=args.include_center
             )
             first_valid_frame_index = i
 
