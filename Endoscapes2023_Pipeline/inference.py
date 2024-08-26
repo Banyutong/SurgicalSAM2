@@ -275,9 +275,9 @@ def get_each_obj(prompt_frame, cats: Set[int] = None, num_neg_points=0, beta=0):
     all_mask = []
     all_bbox = []
     all_obj_id = []
-    img_info = COCO_INFO.loadImgs(prompt_frame["id"])[
-        0
-    ]  # convert list with one element to the element
+
+    img_info = COCO_INFO.loadImgs(prompt_frame["id"])[0]
+
     height, width = img_info["height"], img_info["width"]
     for ann in anns:
         if cats is not None and ann["category_id"] not in cats:
@@ -357,7 +357,7 @@ def get_obj_from_masks(video_segment):
 
 
 def add_prompt(
-    prompt_objs,
+    prompt_objs: List[PromptObj],
     predictor,
     inference_state,
     prompt_frame_order_in_video,
@@ -386,23 +386,23 @@ def add_prompt(
                 _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
                     inference_state=inference_state,
                     frame_idx=prompt_frame_order_in_video,
-                    obj_id=obj["obj_id"],
-                    points=obj["points"],
-                    labels=obj["pos_or_neg_label"],
+                    obj_id=obj.obj_id,
+                    points=obj.points,
+                    labels=obj.pos_or_neg_label,
                 )
             case "bbox":
                 _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
                     inference_state=inference_state,
                     frame_idx=prompt_frame_order_in_video,
-                    obj_id=obj["obj_id"],
-                    box=obj["bbox"],
+                    obj_id=obj.obj_id,
+                    box=obj.bbox,
                 )
             case "mask":
-                mask_tensor = torch.from_numpy(obj["mask"]).to(torch.bool)
+                mask_tensor = torch.from_numpy(obj.mask).to(torch.bool)
                 _, out_obj_ids, out_mask_logits = predictor.add_new_mask(
                     inference_state=inference_state,
                     frame_idx=prompt_frame_order_in_video,
-                    obj_id=obj["obj_id"],
+                    obj_id=obj.obj_id,
                     mask=mask_tensor,
                 )
 
@@ -484,9 +484,9 @@ def process_video_clip(frames, clip_prompts: List[PromptInfo], clip_range: ClipR
     inference_state = predictor.init_state(video_path=video_dir)
 
     for prompt_info in clip_prompts:
-        prompt_objs = prompt_info["prompt_objs"]
-        prompt_frame_idx = prompt_info["frame_idx"] - start_idx
-        prompt_type = prompt_info["prompt_type"]
+        prompt_objs = prompt_info.prompt_objs
+        prompt_frame_idx = prompt_info.frame_idx - start_idx
+        prompt_type = prompt_info.prompt_type
         predictor, inference_state, out_obj_ids, out_mask_logits = add_prompt(
             prompt_objs,
             predictor,
@@ -538,9 +538,7 @@ def get_clip_prompts(frames, prompt_type, clip_length: int = None):
         # If we found a prompt frame and we have a current clip that needs to be yielded
         if current_clip_start <= current_clip_end:
             for prompt_info in current_clip_prompts:
-                prompt_info["clip_range"] = ClipRange(
-                    current_clip_start, current_clip_end
-                )
+                prompt_info.clip_range = ClipRange(current_clip_start, current_clip_end)
             yield current_clip_prompts, ClipRange(current_clip_start, current_clip_end)
             current_clip_prompts = []  # Reset current clip prompts
 
@@ -560,6 +558,8 @@ def get_clip_prompts(frames, prompt_type, clip_length: int = None):
 
     # Yield the last clip if it exists
     if current_clip_start <= current_clip_end:
+        for prompt_info in current_clip_prompts:
+            prompt_info.clip_range = ClipRange(current_clip_start, current_clip_end)
         yield current_clip_prompts, ClipRange(current_clip_start, current_clip_end)
 
 
@@ -627,7 +627,7 @@ def get_prompts_from_categories(frames):
             previous_start_idx = prompt_frame_idx
             continue
 
-        previous_prompt_info["clip_range"] = ClipRange(
+        previous_prompt_info.clip_range = ClipRange(
             previous_start_idx, prompt_frame_idx
         )
         prompt_and_ranges.append(
@@ -637,9 +637,7 @@ def get_prompts_from_categories(frames):
         previous_start_idx = prompt_frame_idx
 
     if previous_start_idx != len(frames) - 1:
-        previous_prompt_info["clip_range"] = ClipRange(
-            previous_start_idx, len(frames) - 1
-        )
+        previous_prompt_info.clip_range = ClipRange(previous_start_idx, len(frames) - 1)
         prompt_and_ranges.append(
             ([previous_prompt_info], ClipRange(previous_start_idx, len(frames) - 1))
         )
@@ -677,7 +675,7 @@ def process_singel_video(
     for clip_prompts, clip_range in gen_clip_prompts:
 
         if variable_cats and previous_frame_mask_prompt is not None:
-            previous_frame_mask_prompt["clip_range"] = clip_range
+            previous_frame_mask_prompt.clip_range = clip_range
             clip_prompts.append(previous_frame_mask_prompt)
 
         save_prompt_frame(clip_prompts)
@@ -854,8 +852,8 @@ if __name__ == "__main__":
     inference(
         coco_path="coco_annotations.json",
         output_path="./default",
-        prompt_type="points",
-        clip_length=None,
+        prompt_type="bbox",  # bbox, mask
+        clip_length=30,
         variable_cats=False,
         save_video_list=None,
         noised_prompt=False,

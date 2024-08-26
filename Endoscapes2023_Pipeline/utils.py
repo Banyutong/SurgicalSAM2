@@ -18,17 +18,21 @@ from loguru import logger
 from typing import List
 import random
 import albumentations as A
-from typing import List, Dict, TypedDict, NamedTuple, Generator, Tuple, Set
+from typing import List, Dict
+from dataclasses import dataclass
+from natsort import natsorted
 
 
-class ClipRange(NamedTuple):
+@dataclass
+class ClipRange:
     """Named tuple for storing clip range."""
 
     start_idx: int
     end_idx: int
 
 
-class PromptObj(TypedDict):
+@dataclass
+class PromptObj:
     """Typed dictionary for storing prompt object."""
 
     mask: np.ndarray
@@ -38,15 +42,24 @@ class PromptObj(TypedDict):
     pos_or_neg_label: List[int]
 
 
-class PromptInfo(TypedDict):
+@dataclass
+class PromptInfo:
     """Typed dictionary for storing prompt information."""
 
-    prompt_objs: List[Dict]
+    prompt_objs: List[PromptObj]
     frame_idx: int
     prompt_type: str
     video_id: str
     path: str
     clip_range: ClipRange
+
+
+def get_dicts_by_field_value(data, field_name, target_value):
+    return [item for item in data if item.get(field_name) == target_value]
+
+
+def sort_dicts_by_field(data, field_name, reverse=False):
+    return natsorted(data, key=lambda item: item.get(field_name), reverse=reverse)
 
 
 def show_mask(mask, ax, obj_id=None, random_color=True):
