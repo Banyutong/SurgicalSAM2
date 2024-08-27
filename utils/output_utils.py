@@ -93,20 +93,24 @@ def save_visualizations(video_segments, frame_names, video_dir, output_dir, obje
                            loop=0)
         
     # Save video
-    if gif_frames:
-        height, width = gif_frames[0].size
-        output_path = os.path.join(output_dir, 'visualization.mp4')
-        # Initialize the video writer with the desired output format (mp4), frame size, and frame rate
-        video_writer = cv2.VideoWriter(output_path, 
-                                   cv2.VideoWriter_fourcc(*'mp4v'), 
-                                   1,  #TODO: change frame rate (e.g., 2 frames per second)
-                                   (width, height))
-        for frame in gif_frames:
-            # Convert PIL image to a format compatible with OpenCV (BGR format)
-            frame_bgr = cv2.cvtColor(np.array(frame), cv2.COLOR_RGB2BGR)
-            video_writer.write(frame_bgr)
-        # Release the video writer
-        video_writer.release()
+    gif = cv2.VideoCapture(os.path.join(output_dir, 'visualization.gif'))
+    width = int(gif.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(gif.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = gif.get(cv2.CAP_PROP_FPS)
+
+
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # 使用 'mp4v' 编码保存为 MP4
+    out = cv2.VideoWriter(os.path.join(output_dir, 'visualization.mp4'), fourcc, fps, (width, height))
+
+    while True:
+        ret, frame = gif.read()
+        if not ret:
+            break
+        out.write(frame)
+
+
+    gif.release()
+    out.release()
 
 
 def save_coco_json(coco_annotations, coco_images, num_objects, output_dir):
