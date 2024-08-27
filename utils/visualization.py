@@ -194,6 +194,11 @@ def visualize_all_frames(video_segments, frame_names, video_dir, output_dir, gt_
         else:  # bbox
             current_gt = gt_data[frame_idx] if frame_idx < len(gt_data) else []
 
+        vis_dir_gt = os.path.join(output_dir, 'visualization_gt')
+        os.makedirs(vis_dir_gt, exist_ok=True)
+        vis_dir_gt_path = os.path.join(vis_dir_gt, f'frame_{frame_idx:04d}.png')
+
+
         output_path = os.path.join(vis_dir, f'frame_{frame_idx:04d}.png')
         prompt_frame_gt = gt_data[prompt_frame_index]
         visualize_frame(
@@ -202,6 +207,7 @@ def visualize_all_frames(video_segments, frame_names, video_dir, output_dir, gt_
             current_gt,
             prediction,
             output_path,
+            vis_dir_gt_path,
             prompt_frame,
             prompt_points,
             gt_type,
@@ -210,8 +216,22 @@ def visualize_all_frames(video_segments, frame_names, video_dir, output_dir, gt_
             show_points,
             point_positive_or_negative_labels,
             point_class_labels,
-
-
+        )
+        visualize_frame_gt(
+            current_frame,
+            prompt_frame_gt,
+            current_gt,
+            prediction,
+            output_path,
+            vis_dir_gt_path,
+            prompt_frame,
+            prompt_points,
+            gt_type,
+            class_to_color_mapper,
+            show_first_frame,
+            show_points,
+            point_positive_or_negative_labels,
+            point_class_labels,
         )
     print(f"All frame visualizations saved to {vis_dir}")
 
@@ -237,7 +257,7 @@ MARKER_LIST  = [
     '|'   # vertical line
 ]
 
-def visualize_frame(current_frame, prompt_frame_gt, ground_truth, prediction, output_path, prompt_frame=None, prompt_points=None,
+def visualize_frame(current_frame, prompt_frame_gt, ground_truth, prediction, output_path,vis_dir_gt_path,  prompt_frame=None, prompt_points=None,
                     gt_type='pixel_mask', class_to_color_mapper= None, show_first_frame=True, show_points=True, point_positive_or_negative_labels=None,point_class_labels=None):
     if show_first_frame:
         fig, axes = plt.subplots(1, 4, figsize=(40, 10))
@@ -330,6 +350,7 @@ def visualize_frame(current_frame, prompt_frame_gt, ground_truth, prediction, ou
     axes[2 + idx_offset].set_title(f"Ground Truth ({gt_type.capitalize()})")
     axes[2 + idx_offset].axis('off')
 
+
     # Prediction
     TRANSPARENT=0.7
     if gt_type == 'pixel_mask':
@@ -352,6 +373,7 @@ def visualize_frame(current_frame, prompt_frame_gt, ground_truth, prediction, ou
     plt.savefig(output_path, bbox_inches='tight', pad_inches=0.1)
     plt.close()
 
+
 def get_color_map(num_classes):
     """Generate a color map for visualizing different objects."""
 
@@ -362,3 +384,38 @@ def get_color_map(num_classes):
     #     colors.append(rgb)  # Keep as float values in range 0-1
     colors = plt.get_cmap('tab20')
     return colors.colors
+
+def visualize_frame_gt(current_frame, prompt_frame_gt, ground_truth, prediction, output_path,vis_dir_gt_path,  prompt_frame=None, prompt_points=None,
+                    gt_type='pixel_mask', class_to_color_mapper= None, show_first_frame=True, show_points=True, point_positive_or_negative_labels=None,point_class_labels=None):
+    if show_first_frame:
+        fig, axes = plt.subplots(1, 1, figsize=(40, 10))
+    else:
+        fig, axes = plt.subplots(1, 1, figsize=(30, 10))
+
+    # axes = axes.flatten()  # Flatten the axes array for easier indexing
+
+ 
+    # Ground truth
+    if ground_truth is None or len(ground_truth) == 0:
+        axes.imshow(current_frame)
+        # axes[2 + idx_offset].text(0.5, 0.5, 'No GT', ha='center', va='center', transform=axes[2 + idx_offset].transAxes,
+                                #   fontsize=50,  color='white',
+                                #   bbox=dict(facecolor='black', alpha=0.5))
+    elif gt_type == 'mask':
+        axes.imshow(current_frame)
+        for mask in ground_truth:
+            axes.imshow(mask, cmap='tab20', alpha=0.7)
+    elif gt_type == 'pixel_mask':
+        axes.imshow(current_frame)
+        axes.imshow(ground_truth, alpha=0.7)
+    elif gt_type == 'bbox':
+        axes.imshow(current_frame)
+        for bbox in ground_truth:
+            rect = plt.Rectangle((bbox[0], bbox[1]), bbox[2], bbox[3], fill=False, edgecolor='r', linewidth=2)
+            axes.add_patch(rect)
+    axes.set_title(f"Ground Truth ({gt_type.capitalize()})")
+    axes.axis('off')
+
+    plt.tight_layout()
+    plt.savefig(vis_dir_gt_path, bbox_inches='tight', pad_inches=0.1)
+    plt.close()

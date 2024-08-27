@@ -91,6 +91,23 @@ def save_visualizations(video_segments, frame_names, video_dir, output_dir, obje
                            append_images=gif_frames[1:],
                            duration=500, 
                            loop=0)
+        
+    # Save video
+    if gif_frames:
+        height, width = gif_frames[0].size
+        output_path = os.path.join(output_dir, 'visualization.mp4')
+        # Initialize the video writer with the desired output format (mp4), frame size, and frame rate
+        video_writer = cv2.VideoWriter(output_path, 
+                                   cv2.VideoWriter_fourcc(*'mp4v'), 
+                                   1,  #TODO: change frame rate (e.g., 2 frames per second)
+                                   (width, height))
+        for frame in gif_frames:
+            # Convert PIL image to a format compatible with OpenCV (BGR format)
+            frame_bgr = cv2.cvtColor(np.array(frame), cv2.COLOR_RGB2BGR)
+            video_writer.write(frame_bgr)
+        # Release the video writer
+        video_writer.release()
+
 
 def save_coco_json(coco_annotations, coco_images, num_objects, output_dir):
     coco_data = {

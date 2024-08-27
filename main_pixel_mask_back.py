@@ -13,7 +13,6 @@ from utils.utils import find_frames, process_gt_pixel_mask, get_class_to_color_m
 from utils.output_utils import save_pixel_masks, create_coco_annotations, save_visualizations, save_coco_json
 from utils.groundtruth2point import  sample_points_from_pixel_mask
 
-# input arguments
 def parse_args():
     parser = argparse.ArgumentParser(description="SAM2 Video Segmentation with Pixel Mask")
     parser.add_argument('--video_dir', type=str, required=True, help='Directory containing video frames')
@@ -30,6 +29,7 @@ def setup_environment():
         torch.backends.cudnn.allow_tf32 = True
 
 def process_ground_truth(args, frame_names):
+
     gt_data = process_gt_pixel_mask(frame_names, args.gt_path)
     return gt_data # Assuming the first frame is always valid for pixel_mask
 
