@@ -11,6 +11,8 @@ from typing import List, Dict
 import os
 from utils import get_dicts_by_field_value, sort_dicts_by_field
 from loguru import logger
+from natsort import natsorted
+import imageio
 
 
 COCO_GT = None
@@ -19,6 +21,9 @@ MOD = None
 FRAMES = None
 OUTPUT_PATH = None
 CMAP = plt.get_cmap("tab20")
+IMAGE_PATH_FOR_GIF = None
+
+logger.add("logs/visualize.log")
 
 
 def show_box(box, ax, category_id):
@@ -104,11 +109,25 @@ def get_corresponding_frames(prompt_info: PromptInfo):
     return frame_ids
 
 
+def create_gif(image_paths, output_path):
+    image_paths = natsorted(image_paths)
+    images = [imageio.v3.imread(path) for path in image_paths]
+    imageio.mimsave(
+        output_path,
+        images,
+        fps=1.5,
+    )
+
+
 def visualize_based_on_prompt_info(prompt_info: PromptInfo):
     frame_ids = get_corresponding_frames(prompt_info)
-    os.makedirs(os.path.join(OUTPUT_PATH, prompt_info.video_id), exist_ok=True)
-    fig, axs = plt.subplots(1, 4, figsize=(30, 5))
+    os.makedirs(
+        os.path.join(OUTPUT_PATH, f"video_{prompt_info.video_id}"), exist_ok=True
+    )
+    if prompt_info.video_id not in IMAGE_PATH_FOR_GIF:
+        IMAGE_PATH_FOR_GIF[prompt_info.video_id] = []
 
+    fig, axs = plt.subplots(1, 4, figsize=(18, 3))
     visualize_prompt_frame(prompt_info, axs[0])
 
     for frame_id in frame_ids:
@@ -119,6 +138,13 @@ def visualize_based_on_prompt_info(prompt_info: PromptInfo):
         plt.savefig(
             os.path.join(
                 OUTPUT_PATH,
+                f"video_{prompt_info.video_id}",
+                f"{COCO_GT.loadImgs(frame_id)[0]['file_name']}",
+            )
+        )
+        IMAGE_PATH_FOR_GIF[prompt_info.video_id].append(
+            os.path.join(
+                OUTPUT_PATH,
                 prompt_info.video_id,
                 f"{COCO_GT.loadImgs(frame_id)[0]['file_name']}",
             )
@@ -127,7 +153,7 @@ def visualize_based_on_prompt_info(prompt_info: PromptInfo):
 
 
 def visualize(gt_path, predict_path, prompt_path):
-    global COCO_GT, COCO_PREDICT, MOD, FRAMES, OUTPUT_PATH
+    global COCO_GT, COCO_PREDICT, MOD, FRAMES, OUTPUT_PATH, IMAGE_PATH_FOR_GIF
 
     if COCO_GT is None:
         COCO_GT = COCO(gt_path)
@@ -135,8 +161,9 @@ def visualize(gt_path, predict_path, prompt_path):
         FRAMES = COCO_GT.loadImgs(COCO_GT.getImgIds())
     COCO_PREDICT = COCO_GT.loadRes(predict_path)
     OUTPUT_PATH = os.path.dirname(os.path.join(os.getcwd(), predict_path))
-
+    IMAGE_PATH_FOR_GIF = {}
     #
+    logger.info(f"visualize {predict_path}")
     with open(
         prompt_path,
         "rb",
@@ -145,6 +172,13 @@ def visualize(gt_path, predict_path, prompt_path):
 
     for prompt_info in tqdm(prompt_data):
         visualize_based_on_prompt_info(prompt_info)
+
+    os.makedirs(os.path.join(OUTPUT_PATH, "gif"), exist_ok=True)
+
+    logger.info("create gif")
+    for video_id, image_paths in IMAGE_PATH_FOR_GIF.items():
+        gif_path = os.path.join(OUTPUT_PATH, "gif", f"video_{video_id}.gif")
+        create_gif(image_paths, gif_path)
 
 
 if __name__ == "__main__":

@@ -45,6 +45,9 @@ def get_image_scores(cocoDT, cocoGT):
     img_scores = []
 
     for img in imgs:
+        if img["is_det_keyframe"] == False:
+            continue
+
         anns_dt = cocoDT.loadAnns(cocoDT.getAnnIds(imgIds=img["id"]))
         anns_gt = cocoGT.loadAnns(cocoGT.getAnnIds(imgIds=img["id"]))
 

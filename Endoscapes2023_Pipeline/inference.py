@@ -18,17 +18,14 @@ from typing import List, Dict, TypedDict, NamedTuple, Generator, Tuple, Set
 import random
 from PIL import Image
 from utils import (
-    show_mask,
-    show_points,
-    show_box,
     mask_to_masks,
     mask_to_bbox,
     mask_to_points,
-    add_noise_to_obj,
     PromptObj,
     PromptInfo,
     ClipRange,
 )
+from PromptObjNoiseAdder import PromptObjNoiseAdder
 from loguru import logger
 
 # Enable autocast for mixed precision on CUDA devices
@@ -62,6 +59,7 @@ OBJ_COUNT = 0
 MOD = None
 NOISED_PROMPT = False
 RAND_POINTS_NUM = 0
+NOISE_ADDER = None
 
 
 ########################
@@ -378,7 +376,7 @@ def add_prompt(
     """
     for obj in prompt_objs:
         if NOISED_PROMPT:
-            obj = add_noise_to_obj(obj, prompt_type)
+            obj = NOISE_ADDER.add_noise_to_obj(obj, prompt_type)
             if obj is None:
                 continue
         match prompt_type:
@@ -803,8 +801,10 @@ def inference(
     clip_length,
     variable_cats,
     save_video_list,
-    noised_prompt,
     rand_points_num,
+    noised_prompt=False,
+    noise_intensity=0.1,
+    bbox_noise_type="shift_scale",
 ):
     """
     Perform inference on COCO dataset.
@@ -819,9 +819,11 @@ def inference(
     Returns:
         tuple: Paths to the saved prediction and prompt files.
     """
-    global OUTPUT_PATH, VIDEO_ID_SET, COCO_INFO, MOD, NOISED_PROMPT, RAND_POINTS_NUM
+    global OUTPUT_PATH, VIDEO_ID_SET, COCO_INFO, MOD, NOISED_PROMPT, RAND_POINTS_NUM, NOISE_ADDER
     RAND_POINTS_NUM = rand_points_num
     NOISED_PROMPT = noised_prompt
+    if NOISED_PROMPT:
+        NOISE_ADDER = PromptObjNoiseAdder(bbox_noise_type, noise_intensity)
 
     OUTPUT_PATH = os.path.join("output", prompt_type, output_path)
     os.makedirs(OUTPUT_PATH, exist_ok=True)
@@ -835,7 +837,7 @@ def inference(
     for img in imgs:
         VIDEO_ID_SET.add(img["video_id"])
 
-    logger.add("output/log.log", enqueue=True)
+    logger.add("output/log.log")
 
     all_videos_segments = process_all_videos(prompt_type, clip_length, variable_cats)
 
@@ -858,4 +860,6 @@ if __name__ == "__main__":
         save_video_list=None,
         noised_prompt=False,
         rand_points_num=0,
+        noise_intensity=0.1,
+        bbox_noise_type="shift_scale",
     )

@@ -1,12 +1,12 @@
 config:
-  # - coco_path: "coco_annotations.json"
-  #   output_path: "standard"
-  #   prompt_type: "bbox"
-  #   clip_length: null
-  #   variable_cats: false
-  #   save_video_list: null
-  #   noised_prompt: false
-  #   rand_points_num: 0
+  - coco_path: "coco_annotations.json"
+    output_path: "standard"
+    prompt_type: "bbox"
+    clip_length: null
+    variable_cats: false
+    save_video_list: null
+    noised_prompt: false
+    rand_points_num: 0
   
   - coco_path: "coco_annotations.json"
     output_path: "noised"
