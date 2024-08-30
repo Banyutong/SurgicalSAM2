@@ -91,6 +91,27 @@ def save_visualizations(video_segments, frame_names, video_dir, output_dir, obje
                            append_images=gif_frames[1:],
                            duration=500, 
                            loop=0)
+        
+    # Save video
+    gif = cv2.VideoCapture(os.path.join(output_dir, 'visualization.gif'))
+    width = int(gif.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(gif.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = gif.get(cv2.CAP_PROP_FPS)
+
+
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # 使用 'mp4v' 编码保存为 MP4
+    out = cv2.VideoWriter(os.path.join(output_dir, 'visualization.mp4'), fourcc, fps, (width, height))
+
+    while True:
+        ret, frame = gif.read()
+        if not ret:
+            break
+        out.write(frame)
+
+
+    gif.release()
+    out.release()
+
 
 def save_coco_json(coco_annotations, coco_images, num_objects, output_dir):
     coco_data = {
