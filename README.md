@@ -53,6 +53,13 @@ pip install ffmpeg-python
     * update the `inference.py` and `utils.py` files to support the visualization of the results.
     * You need to re-run the `inference.py` file to generate the visualization results.
 
+* **8.30**
+* **New features:**
+    * You can now control the maximum noise intensity using the `noise_intensity` parameter in `inference.py`. 
+    * You can control the bbox noise type using the `bbox_noise_type` parameter in `inference.py`.
+    * Added `visualize_all.py` to process all visualizations at once.
+    * Added GIF generation functionality to `visualize.py`.
+
 
 
 ### Updated Examples
