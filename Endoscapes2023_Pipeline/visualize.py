@@ -132,23 +132,16 @@ def visualize_based_on_prompt_info(prompt_info: PromptInfo):
 
     for frame_id in frame_ids:
         visualize_current_frame(frame_id, axs[1:])
+        image_path = os.path.join(
+            OUTPUT_PATH,
+            f"video_{prompt_info.video_id}",
+            f"{COCO_GT.loadImgs(frame_id)[0]['file_name']}",
+        )
         for ax in axs:
             ax.axis("off")
         plt.tight_layout()
-        plt.savefig(
-            os.path.join(
-                OUTPUT_PATH,
-                f"video_{prompt_info.video_id}",
-                f"{COCO_GT.loadImgs(frame_id)[0]['file_name']}",
-            )
-        )
-        IMAGE_PATH_FOR_GIF[prompt_info.video_id].append(
-            os.path.join(
-                OUTPUT_PATH,
-                prompt_info.video_id,
-                f"{COCO_GT.loadImgs(frame_id)[0]['file_name']}",
-            )
-        )
+        plt.savefig(image_path)
+        IMAGE_PATH_FOR_GIF[prompt_info.video_id].append(image_path)
     plt.close()
 
 

@@ -9,13 +9,34 @@ config:
     rand_points_num: 0
   
   - coco_path: "coco_annotations.json"
-    output_path: "noised"
+    output_path: "shift_scale_noised"
     prompt_type: "bbox"
     clip_length: null
     variable_cats: false
     save_video_list: null
     noised_prompt: true
     rand_points_num: 0
+    bbox_noise_type: "shift_scale"
+
+  - coco_path: "coco_annotations.json"
+    output_path: "shift_noised"
+    prompt_type: "bbox"
+    clip_length: null
+    variable_cats: false
+    save_video_list: null
+    noised_prompt: true
+    rand_points_num: 0
+    bbox_noise_type: "shift"
+
+  - coco_path: "coco_annotations.json"
+    output_path: "scale_noised"
+    prompt_type: "bbox"
+    clip_length: null
+    variable_cats: false
+    save_video_list: null
+    noised_prompt: true
+    rand_points_num: 0
+    bbox_noise_type: "scale"
 
   - coco_path: "coco_annotations.json"
     output_path: "standard"

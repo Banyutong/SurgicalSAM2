@@ -7,7 +7,7 @@ from loguru import logger
 
 if __name__ == "__main__":
     multiprocessing.set_start_method("spawn")
-    logger.add("output/log.log", mode="w")
+    logger.add("logs/ex.log", mode="w")
     with open("config.yaml", "r") as f:
         config = yaml.safe_load(f)
 

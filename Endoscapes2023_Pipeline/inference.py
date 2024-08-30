@@ -837,7 +837,8 @@ def inference(
     for img in imgs:
         VIDEO_ID_SET.add(img["video_id"])
 
-    logger.add("output/log.log")
+    os.makedirs("logs", exist_ok=True)
+    logger.add("logs/log.log")
 
     all_videos_segments = process_all_videos(prompt_type, clip_length, variable_cats)
 
@@ -855,10 +856,10 @@ if __name__ == "__main__":
         coco_path="coco_annotations.json",
         output_path="./default",
         prompt_type="bbox",  # bbox, mask
-        clip_length=30,
+        clip_length=None,
         variable_cats=False,
         save_video_list=None,
-        noised_prompt=False,
+        noised_prompt=True,
         rand_points_num=0,
         noise_intensity=0.1,
         bbox_noise_type="shift_scale",

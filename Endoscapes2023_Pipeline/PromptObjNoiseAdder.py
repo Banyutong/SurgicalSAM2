@@ -2,10 +2,11 @@ import numpy as np
 import cv2
 import random
 import albumentations as A
+from utils import PromptObj
 
 
 class PromptObjNoiseAdder:
-    def __init__(self, bbox_noise_type="shift_scale", noise_intensity=0.5):
+    def __init__(self, bbox_noise_type="shift_scale", noise_intensity=0.1):
         self.BG_IMAGE = np.zeros((100, 100), dtype=np.uint8)
         self.bbox_noise_type = bbox_noise_type
         self.noise_intensity = noise_intensity
@@ -68,40 +69,40 @@ class PromptObjNoiseAdder:
             )
 
     def dilate_mask(self, mask, **kwargs):
-        kernel_size = random.randrange(3, int(21 * self.noise_intensity), 2)
+        kernel_size = random.randrange(3, 3 + int(21 * self.noise_intensity), 2)
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
         noised_mask = cv2.dilate(mask, kernel)
         return noised_mask.astype(bool)
 
     def erode_mask(self, mask, **kwargs):
-        kernel_size = random.randrange(3, int(21 * self.noise_intensity), 2)
+        kernel_size = random.randrange(3, 3 + int(21 * self.noise_intensity), 2)
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
         noised_mask = cv2.erode(mask, kernel)
         return noised_mask.astype(bool)
 
-    def add_noise_to_mask(self, obj):
-        mask = obj["mask"]
+    def add_noise_to_mask(self, obj: PromptObj):
+        mask = obj.mask
         mask = mask.astype(np.uint8)
         transformed = self.MASK_TRANSFORM(image=self.BG_IMAGE, mask=mask)
         transformed_mask = transformed["mask"]
-        obj["mask"] = transformed_mask.astype(bool)
-        if obj["mask"].sum() == 0:
+        obj.mask = transformed_mask.astype(bool)
+        if obj.mask.sum() == 0:
             return None
         return obj
 
-    def add_noise_to_bbox(self, obj):
-        bbox = obj["bbox"]
+    def add_noise_to_bbox(self, obj: PromptObj):
+        bbox = obj.bbox
         bbox.append("bbox")
         transformed = self.BBOX_TRANSFORM(image=self.BG_IMAGE, bboxes=[bbox])
         if len(transformed["bboxes"]) == 0:
             return None
         new_bbox = list(transformed["bboxes"][0])[:-1]
-        obj["bbox"] = new_bbox
+        obj.bbox = new_bbox
         return obj
 
-    def add_noise_to_obj(self, obj, prompt_type):
-        if self.BG_IMAGE.shape != obj["mask"].shape:
-            self.BG_IMAGE = np.zeros(obj["mask"].shape, dtype=np.uint8)
+    def add_noise_to_obj(self, obj: PromptObj, prompt_type: str):
+        if self.BG_IMAGE.shape != obj.mask.shape:
+            self.BG_IMAGE = np.zeros(obj.mask.shape, dtype=np.uint8)
         if prompt_type == "mask":
             return self.add_noise_to_mask(obj)
         elif prompt_type == "bbox":
