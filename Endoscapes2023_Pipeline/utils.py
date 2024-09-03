@@ -1,25 +1,9 @@
-import tempfile
-import json
-import os
-from pycocotools.coco import COCO
-from pycocotools import mask as maskUtils
-import matplotlib.pyplot as plt
-from icecream import ic
-import cv2
-import numpy as np
-from copy import deepcopy
-import uuid
-import os
-import torch
-import numpy as np
-import matplotlib.pyplot as plt
-from PIL import Image
-from loguru import logger
-from typing import List
-import random
-import albumentations as A
-from typing import List, Dict
 from dataclasses import dataclass
+from typing import List
+
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
 from natsort import natsorted
 
 
@@ -129,7 +113,7 @@ def mask_to_masks(mask: np.ndarray) -> list:
 def mask_to_points(mask, num_points=0):
     # 确保mask是一个二值化的numpy数组
     if not isinstance(mask, np.ndarray) or mask.dtype != bool:
-        print(type(mask))
+        # print(type(mask))
         raise ValueError("mask must be a binary numpy array")
 
     # 找到掩码中的所有True点的坐标

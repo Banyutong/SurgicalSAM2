@@ -1,33 +1,29 @@
-import tempfile
 import json
 import os
-from pycocotools.coco import COCO
-from pycocotools import mask as maskUtils
-import matplotlib.pyplot as plt
-from icecream import ic
-import cv2
-import numpy as np
-from copy import deepcopy
-import uuid
-import os
-import torch
-import numpy as np
-import matplotlib.pyplot as plt
 import pickle
-from typing import List, Dict, TypedDict, NamedTuple, Generator, Tuple, Set
 import random
-from PIL import Image
-from utils import (
-    mask_to_masks,
-    mask_to_bbox,
-    mask_to_points,
-    PromptObj,
-    PromptInfo,
-    ClipRange,
-)
-from PromptObjNoiseAdder import PromptObjNoiseAdder
-from loguru import logger
+import tempfile
+from typing import List, Set
 
+import numpy as np
+import torch
+from icecream import ic
+from loguru import logger
+from pycocotools import mask as maskUtils
+from pycocotools.coco import COCO
+from sam2.build_sam import build_sam2_video_predictor
+
+from PromptObjNoiseAdder import PromptObjNoiseAdder
+from utils import (
+    ClipRange,
+    PromptInfo,
+    PromptObj,
+    mask_to_bbox,
+    mask_to_masks,
+    mask_to_points,
+)
+
+ic.disable()
 # Enable autocast for mixed precision on CUDA devices
 torch.autocast(device_type="cuda", dtype=torch.bfloat16).__enter__()
 
@@ -36,7 +32,6 @@ if torch.cuda.get_device_properties(0).major >= 8:
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
 
-from sam2.build_sam import build_sam2_video_predictor
 
 # Path to the SAM2 checkpoint and model configuration
 sam2_checkpoint = (
@@ -139,7 +134,7 @@ def find_prompt_frame(frames, clip_range: ClipRange):
     clip_end = clip_range.end_idx
 
     for frame in frames:
-        if frame["is_det_keyframe"] == False:
+        if frame["is_det_keyframe"] is False:
             continue
 
         if frame["order_in_video"] < clip_start or frame["order_in_video"] > clip_end:
@@ -266,7 +261,7 @@ def get_each_obj(prompt_frame, cats: Set[int] = None, num_neg_points=0, beta=0):
     global OBJ_COUNT
     ann_ids = COCO_INFO.getAnnIds(imgIds=prompt_frame["id"])
     anns = COCO_INFO.loadAnns(ann_ids)
-    num_cat = len(COCO_INFO.cats)
+    len(COCO_INFO.cats)
     objs = []
     all_pos_points = []
     all_pos_cats = []
@@ -501,18 +496,84 @@ def process_video_clip(frames, clip_prompts: List[PromptInfo], clip_range: ClipR
     return video_segments
 
 
-def get_clip_prompts(frames, prompt_type, clip_length: int = None):
+def get_num_categories(frame):
     """
-    Generate clip prompts.
+    Get the number of categories in a frame.
 
     Args:
-        frames (list): List of frame information.
-        prompt_type (str): Type of prompt (points, bbox, mask).
-        clip_length (int): Length of the clip.
+        frame (dict): Information about the frame.
 
-    Yields:
-        tuple: List of prompt information and clip range.
+    Returns:
+        set: Set of category IDs.
     """
+    ann_ids = COCO_INFO.getAnnIds(imgIds=frame["id"])
+    anns = COCO_INFO.loadAnns(ann_ids)
+    cat_set = set()
+    for ann in anns:
+        cat_set.add(ann["category_id"])
+    return cat_set
+
+
+def generate_prompts_by_categories(frames, prompt_type: str):
+    existing_cats = set()
+    previous_start_idx = None
+    previous_prompt_info = None
+    prompt_and_ranges = []
+
+    for frame in frames:
+        if frame["is_det_keyframe"] is False:
+            continue
+        # ic(get_num_categories(frame))
+        if get_num_categories(frame).issubset(existing_cats):
+            continue
+
+        diff_cats = get_num_categories(frame).difference(existing_cats)
+        existing_cats = existing_cats.union(diff_cats)
+
+        prompt_objs = get_each_obj(frame)
+
+        if prompt_objs is None:
+            continue
+
+        prompt_frame_idx = frame["order_in_video"]
+
+        prompt_info = PromptInfo(
+            prompt_objs=prompt_objs,
+            frame_idx=prompt_frame_idx,
+            prompt_type=prompt_type,
+            video_id=str(frame["video_id"]),
+            path=frame["path"],
+            clip_range=None,
+        )
+
+        if previous_prompt_info is None:
+            previous_prompt_info = prompt_info
+            previous_start_idx = prompt_frame_idx
+            continue
+
+        previous_prompt_info.clip_range = ClipRange(
+            previous_start_idx, prompt_frame_idx - 1
+        )
+        prompt_and_ranges.append(
+            (
+                [previous_prompt_info],
+                ClipRange(previous_start_idx, prompt_frame_idx - 1),
+            ),
+        )
+        previous_prompt_info = prompt_info
+        previous_start_idx = prompt_frame_idx
+
+    if previous_start_idx != len(frames) - 1:
+        previous_prompt_info.clip_range = ClipRange(previous_start_idx, len(frames) - 1)
+        prompt_and_ranges.append(
+            ([previous_prompt_info], ClipRange(previous_start_idx, len(frames) - 1))
+        )
+
+    for prompt_and_range in prompt_and_ranges:
+        yield prompt_and_range
+
+
+def generate_prompts_by_clip_length(frames, prompt_type, clip_length: int):
     if clip_length is None:
         clip_length = len(frames)
 
@@ -561,86 +622,68 @@ def get_clip_prompts(frames, prompt_type, clip_length: int = None):
         yield current_clip_prompts, ClipRange(current_clip_start, current_clip_end)
 
 
-def get_num_categories(frame):
-    """
-    Get the number of categories in a frame.
+def merge_prompts(prompts_by_categories, prompts_by_clip_length):
+    merged_prompts = []
+    category_ranges = [
+        (prompt_info, clip_range) for prompt_info, clip_range in prompts_by_categories
+    ]
+    clip_length_ranges = [
+        (prompt_info, clip_range) for prompt_info, clip_range in prompts_by_clip_length
+    ]
 
-    Args:
-        frame (dict): Information about the frame.
+    ic("category_ranges")
+    for _, clip_range in category_ranges:
+        ic(clip_range)
+    ic("clip_length_ranges")
+    for _, clip_range in clip_length_ranges:
+        ic(clip_range)
 
-    Returns:
-        set: Set of category IDs.
-    """
-    ann_ids = COCO_INFO.getAnnIds(imgIds=frame["id"])
-    anns = COCO_INFO.loadAnns(ann_ids)
-    cat_set = set()
-    for ann in anns:
-        cat_set.add(ann["category_id"])
-    return cat_set
+    range_dict = {}
+    for prompt_info, clip_range in category_ranges + clip_length_ranges:
+        range_dict[clip_range.start_idx] = (prompt_info, clip_range)
 
+    # 将字典中的元素转换为列表并按 start_idx 排序
+    all_ranges = sorted(range_dict.values(), key=lambda x: x[1].start_idx)
 
-def get_prompts_from_categories(frames):
-    """
-    Generate prompts based on categories.
+    current_start = None
+    current_end = None
+    current_prompts = []
 
-    Args:
-        frames (list): List of frame information.
+    for i, (prompt_info, clip_range) in enumerate(all_ranges):
+        if current_start is None:
+            current_start = clip_range.start_idx
+            current_end = clip_range.end_idx
+            current_prompts = prompt_info
 
-    Returns:
-        list: List of prompt information and clip ranges.
-    """
-    existing_cats = set()
-    previous_start_idx = None
-    previous_prompt_info = None
-    prompt_and_ranges = []
+        elif clip_range.start_idx < current_end:
+            for p in current_prompts:
+                p.clip_range = ClipRange(current_start, clip_range.start_idx - 1)
+            merged_prompts.append(
+                (current_prompts, ClipRange(current_start, clip_range.start_idx - 1))
+            )
 
-    for frame in frames:
-        if frame["is_det_keyframe"] == False:
-            continue
-        if get_num_categories(frame).issubset(existing_cats):
-            continue
+            current_start = clip_range.start_idx
+            current_end = clip_range.end_idx
+            current_prompts = prompt_info
 
-        diff_cats = get_num_categories(frame).difference(existing_cats)
-        existing_cats = existing_cats.union(diff_cats)
+        else:
+            for p in current_prompts:
+                p.clip_range = ClipRange(current_start, current_end)
+            merged_prompts.append(
+                (current_prompts, ClipRange(current_start, current_end))
+            )
+            current_start = clip_range.start_idx
+            current_end = clip_range.end_idx
+            current_prompts = prompt_info
 
-        prompt_objs = get_each_obj(frame)
-
-        if prompt_objs is None:
-            continue
-
-        prompt_frame_idx = frame["order_in_video"]
-        prompt_type = "points"
-
-        prompt_info = PromptInfo(
-            prompt_objs=prompt_objs,
-            frame_idx=prompt_frame_idx,
-            prompt_type=prompt_type,
-            video_id=str(frame["video_id"]),
-            path=frame["path"],
-            clip_range=None,
-        )
-
-        if previous_prompt_info is None:
-            previous_prompt_info = prompt_info
-            previous_start_idx = prompt_frame_idx
-            continue
-
-        previous_prompt_info.clip_range = ClipRange(
-            previous_start_idx, prompt_frame_idx
-        )
-        prompt_and_ranges.append(
-            ([previous_prompt_info], ClipRange(previous_start_idx, prompt_frame_idx)),
-        )
-        previous_prompt_info = prompt_info
-        previous_start_idx = prompt_frame_idx
-
-    if previous_start_idx != len(frames) - 1:
-        previous_prompt_info.clip_range = ClipRange(previous_start_idx, len(frames) - 1)
-        prompt_and_ranges.append(
-            ([previous_prompt_info], ClipRange(previous_start_idx, len(frames) - 1))
-        )
-
-    return prompt_and_ranges
+    if current_start is not None:
+        for p in current_prompts:
+            p.clip_range = ClipRange(current_start, current_end)
+        merged_prompts.append((current_prompts, ClipRange(current_start, current_end)))
+    ic("merged_prompts")
+    for _, clip_range in merged_prompts:
+        ic(clip_range)
+    return merged_prompts
 
 
 def process_singel_video(
@@ -663,32 +706,21 @@ def process_singel_video(
 
     video_segments = {}
 
-    previous_frame_mask_prompt: PromptInfo = None
-
     if variable_cats:
-        gen_clip_prompts = get_prompts_from_categories(frames)
+        prompts_by_categories = generate_prompts_by_categories(frames, prompt_type)
+        prompts_by_clip_length = generate_prompts_by_clip_length(
+            frames, prompt_type, clip_length
+        )
+        gen_clip_prompts = merge_prompts(prompts_by_categories, prompts_by_clip_length)
     else:
-        gen_clip_prompts = get_clip_prompts(frames, prompt_type, clip_length)
+        gen_clip_prompts = generate_prompts_by_clip_length(
+            frames, prompt_type, clip_length
+        )
 
     for clip_prompts, clip_range in gen_clip_prompts:
-
-        if variable_cats and previous_frame_mask_prompt is not None:
-            previous_frame_mask_prompt.clip_range = clip_range
-            clip_prompts.append(previous_frame_mask_prompt)
-
         save_prompt_frame(clip_prompts)
         logger.info(clip_range)
         video_segments.update(process_video_clip(frames, clip_prompts, clip_range))
-
-        if variable_cats:
-            previous_frame_mask_prompt = PromptInfo(
-                prompt_objs=get_obj_from_masks(video_segments[clip_range.end_idx]),
-                frame_idx=clip_range.end_idx,
-                prompt_type=prompt_type,
-                video_id=str(frames[0]["video_id"]),
-                path=frames[clip_range.end_idx]["path"],
-                clip_range=None,
-            )
 
     torch.cuda.empty_cache()
     return video_segments
@@ -732,7 +764,6 @@ def save_as_coco_format(all_video_segments, save_video_list):
         tuple: Paths to the saved prediction and prompt files.
     """
     coco_annotations: list = []
-    num_cat: int = len(COCO_INFO.cats)
 
     if save_video_list is None:
         save_video_list = VIDEO_ID_SET
@@ -744,7 +775,7 @@ def save_as_coco_format(all_video_segments, save_video_list):
         frames = sort_dicts_by_field(frames, "order_in_video")
 
         for frame in frames:
-            if frame["is_det_keyframe"] == False:
+            if frame["is_det_keyframe"] is False:
                 continue
 
             merged_mask = {}
@@ -819,7 +850,14 @@ def inference(
     Returns:
         tuple: Paths to the saved prediction and prompt files.
     """
-    global OUTPUT_PATH, VIDEO_ID_SET, COCO_INFO, MOD, NOISED_PROMPT, RAND_POINTS_NUM, NOISE_ADDER
+    global \
+        OUTPUT_PATH, \
+        VIDEO_ID_SET, \
+        COCO_INFO, \
+        MOD, \
+        NOISED_PROMPT, \
+        RAND_POINTS_NUM, \
+        NOISE_ADDER
     RAND_POINTS_NUM = rand_points_num
     NOISED_PROMPT = noised_prompt
     if NOISED_PROMPT:
@@ -837,8 +875,7 @@ def inference(
     for img in imgs:
         VIDEO_ID_SET.add(img["video_id"])
 
-    os.makedirs("logs", exist_ok=True)
-    logger.add("logs/log.log")
+    logger.add("output/log.log")
 
     all_videos_segments = process_all_videos(prompt_type, clip_length, variable_cats)
 
@@ -854,10 +891,10 @@ if __name__ == "__main__":
 
     inference(
         coco_path="coco_annotations.json",
-        output_path="./default",
+        output_path="./test",
         prompt_type="bbox",  # bbox, mask
         clip_length=None,
-        variable_cats=False,
+        variable_cats=True,
         save_video_list=None,
         noised_prompt=True,
         rand_points_num=0,

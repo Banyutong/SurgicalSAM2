@@ -1,19 +1,17 @@
 import os
-import numpy as np
-import matplotlib.pyplot as plt
-from PIL import Image
-from tqdm import tqdm
 import pickle
-from PIL import Image
-from pycocotools.coco import COCO
-from utils import PromptInfo, PromptObj, ClipRange
-from typing import List, Dict
-import os
-from utils import get_dicts_by_field_value, sort_dicts_by_field
+from typing import List
+
+import imageio
+import matplotlib.pyplot as plt
+import numpy as np
 from loguru import logger
 from natsort import natsorted
-import imageio
+from PIL import Image
+from pycocotools.coco import COCO
+from tqdm import tqdm
 
+from utils import PromptInfo, get_dicts_by_field_value, sort_dicts_by_field
 
 COCO_GT = None
 COCO_PREDICT = None
@@ -176,6 +174,6 @@ def visualize(gt_path, predict_path, prompt_path):
 
 if __name__ == "__main__":
     gt_path = "coco_annotations.json"
-    predict_path = "output/bbox/default/predict.json"
-    prompt_path = "output/bbox/default/prompt.pkl"
+    predict_path = "/bd_byta6000i0/users/sam2/kyyang/sam2_predict/output/bbox/bbox_60_frames/predict.json"
+    prompt_path = "/bd_byta6000i0/users/sam2/kyyang/sam2_predict/output/bbox/bbox_60_frames/prompt.pkl"
     visualize(gt_path, predict_path, prompt_path)
