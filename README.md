@@ -1,6 +1,7 @@
+# SurgicalSAM2
+[TOC]
 
-
-
+![gif_demo](images/output.gif)
 
 ## Installation
 
