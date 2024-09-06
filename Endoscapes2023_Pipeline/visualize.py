@@ -126,8 +126,8 @@ def visualize_based_on_prompt_info(prompt_info: PromptInfo):
         IMAGE_PATH_FOR_GIF[prompt_info.video_id] = []
 
     fig, axs = plt.subplots(1, 4, figsize=(18, 3))
+    plt.tight_layout()
     visualize_prompt_frame(prompt_info, axs[0])
-
     for frame_id in frame_ids:
         visualize_current_frame(frame_id, axs[1:])
         image_path = os.path.join(
@@ -137,7 +137,7 @@ def visualize_based_on_prompt_info(prompt_info: PromptInfo):
         )
         for ax in axs:
             ax.axis("off")
-        plt.tight_layout()
+
         plt.savefig(image_path)
         IMAGE_PATH_FOR_GIF[prompt_info.video_id].append(image_path)
     plt.close()
