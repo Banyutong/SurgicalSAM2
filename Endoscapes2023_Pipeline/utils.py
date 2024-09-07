@@ -110,7 +110,7 @@ def mask_to_masks(mask: np.ndarray) -> list:
     return binary_masks
 
 
-def mask_to_points(mask, num_points=0):
+def mask_to_points(mask, num_points=0, include_center=False):
     # 确保mask是一个二值化的numpy数组
     if not isinstance(mask, np.ndarray) or mask.dtype != bool:
         # print(type(mask))
@@ -120,19 +120,25 @@ def mask_to_points(mask, num_points=0):
     points = np.argwhere(mask)
     points = points[:, [1, 0]]
     # 如果num_points为1，返回掩码的中心点
-    if num_points == 0:
-        # 计算中心点
+
+    if include_center is True:
         center = np.mean(points, axis=0).astype(int)
-        return center.reshape(1, -1)
+        center = center.reshape(1, -1)
+        num_points -= 1
 
     # 如果num_points大于1，从掩码中随机采样指定数量的点
     # logger.info(f"points.shape: {points.shape}")
+    # logger.debug(f"points.shape: {points.shape}")
+    # logger.debug(f"num_points: {num_points}")
+    # logger.debug(f"num_points: {type(num_points)}")
     if num_points > points.shape[0]:
         raise ValueError("num_points is greater than the number of points in the mask")
 
     sampled_points = points[
         np.random.choice(points.shape[0], num_points, replace=False)
     ]
+    if include_center:
+        sampled_points = np.concatenate([center, sampled_points], axis=0)
     return sampled_points
 
 

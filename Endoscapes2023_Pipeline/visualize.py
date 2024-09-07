@@ -37,7 +37,7 @@ def show_box(box, ax, category_id):
 
 
 def show_mask(mask, ax, category_id):
-    color = np.array([*CMAP(category_id)[:3], 0.6])
+    color = np.array([*CMAP(category_id % MOD)[:3], 0.6])
     h, w = mask.shape[-2:]
     mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
     ax.imshow(mask_image)
@@ -73,6 +73,7 @@ def visualize_prompt_frame(prompt_info: PromptInfo, ax):
                 show_box(obj.bbox, ax, obj_id)
             case "mask":
                 show_mask(obj.mask, ax, obj_id)
+        # break
 
 
 def visualize_current_frame(frame_id, axs):
@@ -127,8 +128,8 @@ def visualize_based_on_prompt_info(prompt_info: PromptInfo):
 
     fig, axs = plt.subplots(1, 4, figsize=(18, 3))
     visualize_prompt_frame(prompt_info, axs[0])
-    plt.tight_layout()
 
+    plt.tight_layout()
     for frame_id in frame_ids:
         visualize_current_frame(frame_id, axs[1:])
         image_path = os.path.join(
@@ -173,11 +174,11 @@ def visualize(gt_path, predict_path, prompt_path):
 
 
 if __name__ == "__main__":
-    gt_path = "coco_annotations.json"
+    gt_path = "/bd_byta6000i0/users/sam2/wlsong/pipeline/Video01/coco_annotations.json"
     predict_path = (
-        "/bd_byta6000i0/users/sam2/kyyang/sam2_predict/output/points/1_neg/predict.json"
+        "/bd_byta6000i0/users/sam2/kyyang/sam2_predict/cadis_test/mask/predict.json"
     )
     prompt_path = (
-        "/bd_byta6000i0/users/sam2/kyyang/sam2_predict/output/points/1_neg/prompt.pkl"
+        "/bd_byta6000i0/users/sam2/kyyang/sam2_predict/cadis_test/mask/prompt.pkl"
     )
     visualize(gt_path, predict_path, prompt_path)

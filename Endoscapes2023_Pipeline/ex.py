@@ -1,7 +1,6 @@
 import yaml
 import multiprocessing
 from inference import inference
-from icecream import ic
 from loguru import logger
 
 

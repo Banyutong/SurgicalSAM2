@@ -23,7 +23,7 @@ from utils import (
     mask_to_points,
 )
 
-ic.disable()
+# ic.disable()
 # Enable autocast for mixed precision on CUDA devices
 torch.autocast(device_type="cuda", dtype=torch.bfloat16).__enter__()
 
@@ -53,8 +53,10 @@ COCO_INFO = None
 OBJ_COUNT = 0
 MOD = None
 NOISED_PROMPT = False
-RAND_POINTS_NUM = 0
+NUM_POINTS = 0
 NOISE_ADDER = None
+NUM_NEG_POINTS = 0
+INCLUDE_CENTER = True
 
 
 ########################
@@ -247,7 +249,80 @@ def merge_point_lists(all_pos_points, negative_points):
     return merged_points, pos_or_neg_labels
 
 
-def get_each_obj(prompt_frame, cats: Set[int] = None, num_neg_points=0, beta=0):
+# def get_each_obj(prompt_frame, cats: Set[int] = None, beta=10):
+#     """
+#     Extract objects from the prompt frame.
+
+#     Args:
+#         prompt_frame (dict): Information about the prompt frame.
+#         cats (Set[int]): Set of category IDs to filter by.
+
+#     Returns:
+#         list: List of objects.
+#     """
+#     global OBJ_COUNT
+#     ann_ids = COCO_INFO.getAnnIds(imgIds=prompt_frame["id"])
+#     anns = COCO_INFO.loadAnns(ann_ids)
+#     len(COCO_INFO.cats)
+#     objs = []
+#     all_pos_points = []
+#     all_pos_cats = []
+#     all_mask = []
+#     all_bbox = []
+#     all_obj_id = []
+
+#     img_info = COCO_INFO.loadImgs(prompt_frame["id"])[0]
+
+#     height, width = img_info["height"], img_info["width"]
+#     for ann in anns:
+#         if cats is not None and ann["category_id"] not in cats:
+#             continue
+#         rle = ann["segmentation"]
+#         raw_mask = maskUtils.decode(rle)  # 将RLE解码为二进制掩码
+#         masks = mask_to_masks(raw_mask)
+
+#         for mask in masks:
+#             obj_id = OBJ_COUNT * MOD + ann["category_id"]
+#             # logger.info(f"num_points: {type(num_points)}")
+#             pos_points = mask_to_points(mask, RAND_POINTS_NUM)
+#             all_pos_points.append(pos_points)
+#             pos_classes = [obj_id] * len(pos_points)
+#             all_pos_cats.append(pos_classes)
+#             all_mask.append(mask)
+#             all_bbox.append(mask_to_bbox(mask))
+#             all_obj_id.append(OBJ_COUNT * MOD + ann["category_id"])
+#             OBJ_COUNT += 1
+
+#     negative_points, negative_point_cats = generate_negative_samples(
+#         all_pos_points, all_pos_cats, NUM_NEG_POINTS, height, width, beta=beta
+#     )
+#     all_points, positive_or_negative_labels_lists = merge_point_lists(
+#         all_pos_points, negative_points
+#     )
+#     for i, (mask, bbox, obj_id, points, pos_or_neg_label) in enumerate(
+#         zip(
+#             all_mask,
+#             all_bbox,
+#             all_obj_id,
+#             all_points,
+#             positive_or_negative_labels_lists,
+#         )
+#     ):
+#         obj = PromptObj(
+#             mask=mask,
+#             bbox=bbox,
+#             points=points,
+#             obj_id=obj_id,
+#             pos_or_neg_label=pos_or_neg_label,
+#         )
+#         ic(points)
+#         ic(type(points))
+#         objs.append(obj)
+
+#     return objs
+
+
+def get_each_obj(prompt_frame, cats: Set[int] = None, beta=10):
     """
     Extract objects from the prompt frame.
 
@@ -261,17 +336,9 @@ def get_each_obj(prompt_frame, cats: Set[int] = None, num_neg_points=0, beta=0):
     global OBJ_COUNT
     ann_ids = COCO_INFO.getAnnIds(imgIds=prompt_frame["id"])
     anns = COCO_INFO.loadAnns(ann_ids)
-    len(COCO_INFO.cats)
+
     objs = []
-    all_pos_points = []
-    all_pos_cats = []
-    all_mask = []
-    all_bbox = []
-    all_obj_id = []
 
-    img_info = COCO_INFO.loadImgs(prompt_frame["id"])[0]
-
-    height, width = img_info["height"], img_info["width"]
     for ann in anns:
         if cats is not None and ann["category_id"] not in cats:
             continue
@@ -282,38 +349,30 @@ def get_each_obj(prompt_frame, cats: Set[int] = None, num_neg_points=0, beta=0):
         for mask in masks:
             obj_id = OBJ_COUNT * MOD + ann["category_id"]
             # logger.info(f"num_points: {type(num_points)}")
-            pos_points = mask_to_points(mask, RAND_POINTS_NUM)
-            all_pos_points.append(pos_points)
-            pos_classes = [obj_id] * len(pos_points)
-            all_pos_cats.append(pos_classes)
-            all_mask.append(mask)
-            all_bbox.append(mask_to_bbox(mask))
-            all_obj_id.append(OBJ_COUNT * MOD + ann["category_id"])
-            OBJ_COUNT += 1
+            pos_points = mask_to_points(
+                mask,
+                num_points=NUM_POINTS,
+                include_center=INCLUDE_CENTER,
+            )
+            negative_points = mask_to_points(
+                np.logical_not(mask),
+                num_points=NUM_NEG_POINTS,
+                include_center=False,
+            )
 
-    negative_points, negative_point_cats = generate_negative_samples(
-        all_pos_points, all_pos_cats, num_neg_points, height, width, beta=beta
-    )
-    all_points, positive_or_negative_labels_lists = merge_point_lists(
-        all_pos_points, negative_points
-    )
-    for i, (mask, bbox, obj_id, points, pos_or_neg_label) in enumerate(
-        zip(
-            all_mask,
-            all_bbox,
-            all_obj_id,
-            all_points,
-            positive_or_negative_labels_lists,
-        )
-    ):
-        obj = PromptObj(
-            mask=mask,
-            bbox=bbox,
-            points=points,
-            obj_id=obj_id,
-            pos_or_neg_label=pos_or_neg_label,
-        )
-        objs.append(obj)
+            pos_labels = np.ones(len(pos_points))
+            neg_labels = np.zeros(len(negative_points))
+
+            obj = PromptObj(
+                mask=mask,
+                bbox=mask_to_bbox(mask),
+                points=np.concatenate([pos_points, negative_points]),
+                obj_id=obj_id,
+                pos_or_neg_label=np.concatenate([pos_labels, neg_labels]),
+            )
+            objs.append(obj)
+
+            OBJ_COUNT += 1
 
     return objs
 
@@ -775,8 +834,8 @@ def save_as_coco_format(all_video_segments, save_video_list):
         frames = sort_dicts_by_field(frames, "order_in_video")
 
         for frame in frames:
-            if frame["is_det_keyframe"] is False:
-                continue
+            # if frame["is_det_keyframe"] is False:
+            #     continue
 
             merged_mask = {}
 
@@ -832,10 +891,12 @@ def inference(
     clip_length,
     variable_cats,
     save_video_list,
-    rand_points_num,
+    num_points,
+    include_center,
     noised_prompt=False,
     noise_intensity=0.1,
     bbox_noise_type="shift_scale",
+    num_neg_points=0,
 ):
     """
     Perform inference on COCO dataset.
@@ -856,9 +917,13 @@ def inference(
         COCO_INFO, \
         MOD, \
         NOISED_PROMPT, \
-        RAND_POINTS_NUM, \
-        NOISE_ADDER
-    RAND_POINTS_NUM = rand_points_num
+        NUM_POINTS, \
+        NOISE_ADDER, \
+        NUM_NEG_POINTS, \
+        INCLUDE_CENTER
+    NUM_NEG_POINTS = num_neg_points
+    NUM_POINTS = num_points
+    INCLUDE_CENTER = include_center
     NOISED_PROMPT = noised_prompt
     if NOISED_PROMPT:
         NOISE_ADDER = PromptObjNoiseAdder(bbox_noise_type, noise_intensity)
@@ -890,14 +955,16 @@ if __name__ == "__main__":
     # global OUTPUT_PATH
 
     inference(
-        coco_path="coco_annotations.json",
-        output_path="./test",
+        coco_path="/bd_byta6000i0/users/sam2/wlsong/pipeline/Video01/coco_annotations.json",
+        output_path="./cadis_test",
         prompt_type="bbox",  # bbox, mask
         clip_length=None,
-        variable_cats=True,
+        variable_cats=False,
         save_video_list=None,
-        noised_prompt=True,
-        rand_points_num=0,
+        num_points=1,
+        include_center=True,
+        noised_prompt=False,
         noise_intensity=0.1,
         bbox_noise_type="shift_scale",
+        num_neg_points=0,
     )
