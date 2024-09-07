@@ -59,6 +59,12 @@ pip install ffmpeg-python
     * Added `visualize_all.py` to process all visualizations at once.
     * Added GIF generation functionality to `visualize.py`.
 
+* **9.7**
+
+    * Add the `visualize_cv.py` to speed up the visualization process.
+    * Fix the bug in `inference.py`. The code now properly supports sampling negative points from pixel masks.
+
+
 
 
 ### Updated Examples
