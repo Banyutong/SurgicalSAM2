@@ -563,7 +563,7 @@ def generate_prompts_by_categories(frames, prompt_type: str):
         previous_prompt_info = prompt_info
         previous_start_idx = prompt_frame_idx
 
-    if previous_start_idx != len(frames) - 1:
+    if previous_start_idx != len(frames) - 1 and previous_start_idx is not None:
         previous_prompt_info.clip_range = ClipRange(previous_start_idx, len(frames) - 1)
         prompt_and_ranges.append(
             ([previous_prompt_info], ClipRange(previous_start_idx, len(frames) - 1))
