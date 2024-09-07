@@ -1,8 +1,11 @@
-from pycocotools.coco import COCO
-import numpy as np
 import pickle
 
+import numpy as np
+from icecream import ic
+from pycocotools.coco import COCO
+
 CAT_IDS = None
+ic.disable()
 
 
 def get_dicts_by_field_value(data, field_name, target_value):
@@ -36,8 +39,17 @@ def caculate_mae(y_true, y_pred):
     return np.mean(np.abs(y_true - y_pred))
 
 
-def get_image_scores(cocoDT, cocoGT):
+def merge_masks(masks):
+    """合并多个mask为一个mask"""
+    if not masks:
+        return None
+    merged_mask = np.zeros_like(masks[0])
+    for mask in masks:
+        merged_mask = np.logical_or(merged_mask, mask)
+    return merged_mask.astype(np.uint8)
 
+
+def get_image_scores(cocoDT, cocoGT):
     imgids = cocoGT.getImgIds()
     imgs = cocoGT.loadImgs(imgids)
     video_id_set = set()
@@ -45,7 +57,7 @@ def get_image_scores(cocoDT, cocoGT):
     img_scores = []
 
     for img in imgs:
-        if img["is_det_keyframe"] == False:
+        if img["is_det_keyframe"] is False:
             continue
 
         anns_dt = cocoDT.loadAnns(cocoDT.getAnnIds(imgIds=img["id"]))
@@ -64,20 +76,33 @@ def get_image_scores(cocoDT, cocoGT):
             "avg_scores": {"iou": None, "mae": None, "dice": None},
         }
 
-        for ann_dt in anns_dt:
-            for ann_gt in anns_gt:
+        for cat_id in CAT_IDS:
+            cat_anns_dt = [ann for ann in anns_dt if ann["category_id"] == cat_id]
+            cat_anns_gt = [ann for ann in anns_gt if ann["category_id"] == cat_id]
 
-                if ann_dt["category_id"] == ann_gt["category_id"]:
+            if not cat_anns_dt and not cat_anns_gt:
+                continue
 
-                    mask_dt = cocoDT.annToMask(ann_dt)
-                    mask_gt = cocoGT.annToMask(ann_gt)
-                    iou = caculate_iou(mask_dt, mask_gt)
-                    mae = caculate_mae(mask_dt, mask_gt)
-                    dice = caculate_dice(mask_dt, mask_gt)
+            masks_dt = [cocoDT.annToMask(ann) for ann in cat_anns_dt]
+            masks_gt = [cocoGT.annToMask(ann) for ann in cat_anns_gt]
 
-                    all_iou[ann_dt["category_id"]].append(iou)
-                    all_mae[ann_dt["category_id"]].append(mae)
-                    all_dice[ann_dt["category_id"]].append(dice)
+            merged_mask_dt = merge_masks(masks_dt)
+            merged_mask_gt = merge_masks(masks_gt)
+
+            if merged_mask_dt is None:
+                merged_mask_dt = np.zeros_like(merged_mask_gt)
+            if merged_mask_gt is None:
+                merged_mask_gt = np.zeros_like(merged_mask_dt)
+
+            iou = caculate_iou(merged_mask_dt, merged_mask_gt)
+            if iou == 0:
+                ic(img["file_name"])
+            mae = caculate_mae(merged_mask_dt, merged_mask_gt)
+            dice = caculate_dice(merged_mask_dt, merged_mask_gt)
+
+            all_iou[cat_id].append(iou)
+            all_mae[cat_id].append(mae)
+            all_dice[cat_id].append(dice)
 
         avg_iou = []
         avg_mae = []
@@ -232,7 +257,6 @@ def get_result(video_scores):
 
 
 def eval(predict_path, coco_path, output_path):
-
     global CAT_IDS
 
     cocoGT = COCO(coco_path)
@@ -250,9 +274,8 @@ def eval(predict_path, coco_path, output_path):
 
 
 if __name__ == "__main__":
-
     eval(
-        predict_path="/bd_byta6000i0/users/sam2/kyyang/SurgicalSAM2/Endoscapes2023_Pipeline/test/output/mask/predict.json",
-        coco_path="gt_coco_annotations.json",
-        output_path="test/output/mask/",
+        predict_path="/bd_byta6000i0/users/sam2/kyyang/sam2_predict/output/mask/standard/predict.json",
+        coco_path="coco_annotations.json",
+        output_path="/bd_byta6000i0/users/sam2/kyyang/sam2_predict/output/mask/standard/",
     )

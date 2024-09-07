@@ -126,8 +126,9 @@ def visualize_based_on_prompt_info(prompt_info: PromptInfo):
         IMAGE_PATH_FOR_GIF[prompt_info.video_id] = []
 
     fig, axs = plt.subplots(1, 4, figsize=(18, 3))
-    plt.tight_layout()
     visualize_prompt_frame(prompt_info, axs[0])
+    plt.tight_layout()
+
     for frame_id in frame_ids:
         visualize_current_frame(frame_id, axs[1:])
         image_path = os.path.join(
@@ -137,7 +138,6 @@ def visualize_based_on_prompt_info(prompt_info: PromptInfo):
         )
         for ax in axs:
             ax.axis("off")
-
         plt.savefig(image_path)
         IMAGE_PATH_FOR_GIF[prompt_info.video_id].append(image_path)
     plt.close()
@@ -174,6 +174,10 @@ def visualize(gt_path, predict_path, prompt_path):
 
 if __name__ == "__main__":
     gt_path = "coco_annotations.json"
-    predict_path = "/bd_byta6000i0/users/sam2/kyyang/sam2_predict/output/bbox/bbox_60_frames/predict.json"
-    prompt_path = "/bd_byta6000i0/users/sam2/kyyang/sam2_predict/output/bbox/bbox_60_frames/prompt.pkl"
+    predict_path = (
+        "/bd_byta6000i0/users/sam2/kyyang/sam2_predict/output/points/1_neg/predict.json"
+    )
+    prompt_path = (
+        "/bd_byta6000i0/users/sam2/kyyang/sam2_predict/output/points/1_neg/prompt.pkl"
+    )
     visualize(gt_path, predict_path, prompt_path)
