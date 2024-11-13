@@ -217,22 +217,22 @@ def visualize_all_frames(video_segments, frame_names, video_dir, output_dir, gt_
             point_positive_or_negative_labels,
             point_class_labels,
         )
-        visualize_frame_gt(
-            current_frame,
-            prompt_frame_gt,
-            current_gt,
-            prediction,
-            output_path,
-            vis_dir_gt_path,
-            prompt_frame,
-            prompt_points,
-            gt_type,
-            class_to_color_mapper,
-            show_first_frame,
-            show_points,
-            point_positive_or_negative_labels,
-            point_class_labels,
-        )
+        # visualize_frame_gt(
+        #     current_frame,
+        #     prompt_frame_gt,
+        #     current_gt,
+        #     prediction,
+        #     output_path,
+        #     vis_dir_gt_path,
+        #     prompt_frame,
+        #     prompt_points,
+        #     gt_type,
+        #     class_to_color_mapper,
+        #     show_first_frame,
+        #     show_points,
+        #     point_positive_or_negative_labels,
+        #     point_class_labels,
+        # )
     print(f"All frame visualizations saved to {vis_dir}")
 
 MARKER_SIZE = 200
