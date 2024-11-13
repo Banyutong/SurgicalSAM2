@@ -1,7 +1,7 @@
 from glob import glob
-from visualize import visualize
+from visualize_cv import visualize
 
-predict_list = glob("output/**/predict.json", recursive=True)
+predict_list = glob("dense_points/*/*random/predict.json", recursive=True)
 
 gt_path = "coco_annotations.json"
 

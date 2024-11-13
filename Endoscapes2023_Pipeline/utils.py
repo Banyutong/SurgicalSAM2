@@ -38,6 +38,9 @@ class PromptInfo:
     clip_range: ClipRange
 
 
+GRID = None
+
+
 def get_dicts_by_field_value(data, field_name, target_value):
     return [item for item in data if item.get(field_name) == target_value]
 
@@ -110,35 +113,43 @@ def mask_to_masks(mask: np.ndarray) -> list:
     return binary_masks
 
 
+def init_grid(size, grid_spacing):
+    global GRID
+    grid = np.zeros(size, dtype=bool)
+    for y in range(0, size[0], grid_spacing):
+        for x in range(0, size[1], grid_spacing):
+            grid[y, x] = True
+    GRID = grid
+
+
 def mask_to_points(mask, num_points=0, include_center=False):
     # 确保mask是一个二值化的numpy数组
     if not isinstance(mask, np.ndarray) or mask.dtype != bool:
         # print(type(mask))
         raise ValueError("mask must be a binary numpy array")
 
-    # 找到掩码中的所有True点的坐标
-    points = np.argwhere(mask)
+    if GRID is not None:
+        sampled_mask = mask & GRID
+        points = np.argwhere(sampled_mask)
+    else:
+        points = np.argwhere(mask)
+
     points = points[:, [1, 0]]
-    # 如果num_points为1，返回掩码的中心点
 
     if include_center is True:
         center = np.mean(points, axis=0).astype(int)
         center = center.reshape(1, -1)
         num_points -= 1
 
-    # 如果num_points大于1，从掩码中随机采样指定数量的点
-    # logger.info(f"points.shape: {points.shape}")
-    # logger.debug(f"points.shape: {points.shape}")
-    # logger.debug(f"num_points: {num_points}")
-    # logger.debug(f"num_points: {type(num_points)}")
     if num_points > points.shape[0]:
-        raise ValueError("num_points is greater than the number of points in the mask")
+        return points
 
     sampled_points = points[
         np.random.choice(points.shape[0], num_points, replace=False)
     ]
     if include_center:
         sampled_points = np.concatenate([center, sampled_points], axis=0)
+
     return sampled_points
 
 

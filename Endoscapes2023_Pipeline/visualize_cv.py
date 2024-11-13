@@ -112,7 +112,7 @@ def show_points(points, labels, image, category_id):
                 color=(255, 255, 255),
                 thickness=2,
             )
-        return image
+    return image
 
 
 def show_mask(mask, image, category_id):
@@ -265,7 +265,10 @@ def visualize(gt_path, predict_path, prompt_path):
         COCO_GT = COCO(gt_path)
         MOD = max(COCO_GT.getCatIds()) + 1
         FRAMES = COCO_GT.loadImgs(COCO_GT.getImgIds())
-    COCO_PREDICT = COCO_GT.loadRes(predict_path)
+    try:
+        COCO_PREDICT = COCO_GT.loadRes(predict_path)
+    except:
+        COCO_PREDICT = COCO_GT
     OUTPUT_PATH = os.path.dirname(os.path.join(os.getcwd(), predict_path))
     IMAGE_PATH_FOR_GIF = {}
     #
@@ -288,13 +291,7 @@ def visualize(gt_path, predict_path, prompt_path):
 
 
 if __name__ == "__main__":
-    gt_path = (
-        "/bd_byta6000i0/users/sam2/wlsong/pipeline/Video01/coco_annotations.json"
-    )
-    predict_path = (
-        "/bd_byta6000i0/users/sam2/kyyang/sam2_predict/cadis_test/bbox/predict.json"
-    )
-    prompt_path = (
-        "/bd_byta6000i0/users/sam2/kyyang/sam2_predict/cadis_test/bbox/prompt.pkl"
-    )
+    gt_path = "/bd_byta6000i0/users/sam2/kyyang/sam2_predict/coco_annotations.json"
+    predict_path = "/bd_byta6000i0/users/sam2/kyyang/sam2_predict/dense_points/points/test/predict.json"
+    prompt_path = "/bd_byta6000i0/users/sam2/kyyang/sam2_predict/dense_points/points/test/prompt.pkl"
     visualize(gt_path, predict_path, prompt_path)

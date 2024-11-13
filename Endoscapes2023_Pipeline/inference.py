@@ -3,6 +3,7 @@ import os
 import pickle
 import random
 import tempfile
+from pprint import pformat
 from typing import List, Set
 
 import numpy as np
@@ -21,7 +22,10 @@ from utils import (
     mask_to_bbox,
     mask_to_masks,
     mask_to_points,
+    init_grid,
 )
+
+logger.add("dense_points/log.log")
 
 # ic.disable()
 # Enable autocast for mixed precision on CUDA devices
@@ -249,79 +253,6 @@ def merge_point_lists(all_pos_points, negative_points):
     return merged_points, pos_or_neg_labels
 
 
-# def get_each_obj(prompt_frame, cats: Set[int] = None, beta=10):
-#     """
-#     Extract objects from the prompt frame.
-
-#     Args:
-#         prompt_frame (dict): Information about the prompt frame.
-#         cats (Set[int]): Set of category IDs to filter by.
-
-#     Returns:
-#         list: List of objects.
-#     """
-#     global OBJ_COUNT
-#     ann_ids = COCO_INFO.getAnnIds(imgIds=prompt_frame["id"])
-#     anns = COCO_INFO.loadAnns(ann_ids)
-#     len(COCO_INFO.cats)
-#     objs = []
-#     all_pos_points = []
-#     all_pos_cats = []
-#     all_mask = []
-#     all_bbox = []
-#     all_obj_id = []
-
-#     img_info = COCO_INFO.loadImgs(prompt_frame["id"])[0]
-
-#     height, width = img_info["height"], img_info["width"]
-#     for ann in anns:
-#         if cats is not None and ann["category_id"] not in cats:
-#             continue
-#         rle = ann["segmentation"]
-#         raw_mask = maskUtils.decode(rle)  # 将RLE解码为二进制掩码
-#         masks = mask_to_masks(raw_mask)
-
-#         for mask in masks:
-#             obj_id = OBJ_COUNT * MOD + ann["category_id"]
-#             # logger.info(f"num_points: {type(num_points)}")
-#             pos_points = mask_to_points(mask, RAND_POINTS_NUM)
-#             all_pos_points.append(pos_points)
-#             pos_classes = [obj_id] * len(pos_points)
-#             all_pos_cats.append(pos_classes)
-#             all_mask.append(mask)
-#             all_bbox.append(mask_to_bbox(mask))
-#             all_obj_id.append(OBJ_COUNT * MOD + ann["category_id"])
-#             OBJ_COUNT += 1
-
-#     negative_points, negative_point_cats = generate_negative_samples(
-#         all_pos_points, all_pos_cats, NUM_NEG_POINTS, height, width, beta=beta
-#     )
-#     all_points, positive_or_negative_labels_lists = merge_point_lists(
-#         all_pos_points, negative_points
-#     )
-#     for i, (mask, bbox, obj_id, points, pos_or_neg_label) in enumerate(
-#         zip(
-#             all_mask,
-#             all_bbox,
-#             all_obj_id,
-#             all_points,
-#             positive_or_negative_labels_lists,
-#         )
-#     ):
-#         obj = PromptObj(
-#             mask=mask,
-#             bbox=bbox,
-#             points=points,
-#             obj_id=obj_id,
-#             pos_or_neg_label=pos_or_neg_label,
-#         )
-#         ic(points)
-#         ic(type(points))
-#         objs.append(obj)
-
-#     return objs
-
-
 def get_each_obj(prompt_frame, cats: Set[int] = None, beta=10):
     """
     Extract objects from the prompt frame.
@@ -348,7 +279,6 @@ def get_each_obj(prompt_frame, cats: Set[int] = None, beta=10):
 
         for mask in masks:
             obj_id = OBJ_COUNT * MOD + ann["category_id"]
-            # logger.info(f"num_points: {type(num_points)}")
             pos_points = mask_to_points(
                 mask,
                 num_points=NUM_POINTS,
@@ -428,6 +358,7 @@ def add_prompt(
     Returns:
         tuple: Updated predictor, inference state, object IDs, and mask logits.
     """
+    logger.info(f"lenght of prompt_objs: {len(prompt_objs)}")
     for obj in prompt_objs:
         if NOISED_PROMPT:
             obj = NOISE_ADDER.add_noise_to_obj(obj, prompt_type)
@@ -435,6 +366,7 @@ def add_prompt(
                 continue
         match prompt_type:
             case "points":
+                logger.debug(f"number of points:{len(obj.points)}")
                 _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
                     inference_state=inference_state,
                     frame_idx=prompt_frame_order_in_video,
@@ -622,7 +554,7 @@ def generate_prompts_by_categories(frames, prompt_type: str):
         previous_prompt_info = prompt_info
         previous_start_idx = prompt_frame_idx
 
-    if previous_start_idx != len(frames) - 1 and previous_start_idx is not None:
+    if previous_start_idx != len(frames) - 1:
         previous_prompt_info.clip_range = ClipRange(previous_start_idx, len(frames) - 1)
         prompt_and_ranges.append(
             ([previous_prompt_info], ClipRange(previous_start_idx, len(frames) - 1))
@@ -803,6 +735,7 @@ def process_all_videos(prompt_type, clip_length, variable_cats):
         video_segments = process_singel_video(
             frames, prompt_type, clip_length, variable_cats
         )
+        # print(video_segments)
         all_video_segments[video_id] = video_segments
         torch.cuda.empty_cache()
         free_memory, total_memory = torch.cuda.mem_get_info()
@@ -836,7 +769,6 @@ def save_as_coco_format(all_video_segments, save_video_list):
         for frame in frames:
             # if frame["is_det_keyframe"] is False:
             #     continue
-
             merged_mask = {}
 
             ## merge the mask
@@ -888,15 +820,16 @@ def inference(
     coco_path,
     output_path,
     prompt_type,
-    clip_length,
-    variable_cats,
-    save_video_list,
-    num_points,
-    include_center,
+    save_video_list=None,
+    clip_length=None,
+    variable_cats=False,
+    num_points=1,
+    include_center=True,
     noised_prompt=False,
     noise_intensity=0.1,
     bbox_noise_type="shift_scale",
     num_neg_points=0,
+    grid_spaceing=None,
 ):
     """
     Perform inference on COCO dataset.
@@ -921,6 +854,10 @@ def inference(
         NOISE_ADDER, \
         NUM_NEG_POINTS, \
         INCLUDE_CENTER
+
+    logger.info("Starting inference with parameters:")
+    logger.info("\n" + pformat(locals(), indent=4, sort_dicts=False))
+
     NUM_NEG_POINTS = num_neg_points
     NUM_POINTS = num_points
     INCLUDE_CENTER = include_center
@@ -928,7 +865,8 @@ def inference(
     if NOISED_PROMPT:
         NOISE_ADDER = PromptObjNoiseAdder(bbox_noise_type, noise_intensity)
 
-    OUTPUT_PATH = os.path.join("output", prompt_type, output_path)
+    OUTPUT_PATH = os.path.join("dense_points", prompt_type, output_path)
+    # OUTPUT_PATH = os.path.join(output_path, prompt_type)
     os.makedirs(OUTPUT_PATH, exist_ok=True)
 
     COCO_INFO = COCO(coco_path)
@@ -937,13 +875,13 @@ def inference(
     img_ids = COCO_INFO.getImgIds()
     imgs = COCO_INFO.loadImgs(img_ids)
 
+    if grid_spaceing is not None:
+        init_grid((imgs[0]["height"], imgs[0]["width"]), grid_spaceing)
+
     for img in imgs:
         VIDEO_ID_SET.add(img["video_id"])
 
-    logger.add("output/log.log")
-
     all_videos_segments = process_all_videos(prompt_type, clip_length, variable_cats)
-
     predict_path, prompt_path = save_as_coco_format(
         all_videos_segments, save_video_list
     )
@@ -955,16 +893,14 @@ if __name__ == "__main__":
     # global OUTPUT_PATH
 
     inference(
-        coco_path="/bd_byta6000i0/users/sam2/wlsong/pipeline/Video01/coco_annotations.json",
-        output_path="./cadis_test",
-        prompt_type="bbox",  # bbox, mask
+        coco_path="/bd_byta6000i0/users/sam2/kyyang/sam2_predict/coco_annotations.json",
+        output_path="./test",
+        prompt_type="points",  # bbox, mask
         clip_length=None,
         variable_cats=False,
         save_video_list=None,
-        num_points=1,
-        include_center=True,
         noised_prompt=False,
-        noise_intensity=0.1,
-        bbox_noise_type="shift_scale",
+        grid_spaceing=None,
+        num_points=int(1),
         num_neg_points=0,
     )
