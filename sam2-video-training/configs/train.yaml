@@ -1,0 +1,52 @@
+defaults:
+  - config
+  - _self_
+
+model:
+  fintuned_model_path: /bd_byta6000i0/users/sam2/wl/zero_shot/sam_model_test/cholecseg8k_point/cholecseg8k_point_48.torch
+  trainable_modules:
+  - memory_encoder
+  - memory_attention
+  - mask_decoder
+  prompt_type: point
+  num_pos_points: 1
+
+trainer:
+  max_epochs: 3
+  val_check_interval: 0.25
+  log_every_n_steps: 1
+  gradient_clip_val: 3
+  accumulate_grad_batches: 16
+  precision: 16
+
+
+optimizer:
+  type: AdamW
+  lr: 1e-3
+  weight_decay: 1e-2
+  betas: [0.9, 0.999]
+  eps: 1e-8
+  amsgrad: true
+  warmup_factor: 0.1
+
+
+visualization:
+  enabled: false
+
+data:
+  video_clip_length: 8
+  stride: 8
+
+loss:
+  type: raw
+  multistep_logit_temperature: 1.0
+
+
++callbacks:
+  - _target_: lightning.pytorch.callbacks.EarlyStopping
+    monitor: "val/total_loss"
+    patience: 8
+    mode: min
+  - _target_: lightning.pytorch.callbacks.StochasticWeightAveraging
+    swa_lrs: 0.005
+  

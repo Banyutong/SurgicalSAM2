@@ -1,0 +1,25 @@
+# sweep.yaml
+program: train.py
+method: grid
+metric:
+  name: val/total_loss
+  goal: minimize
+parameters:
+  loss.gt_stride:
+    values: [1, 4, 8]
+  model.trainable_modules:
+    values: 
+      - "[memory_encoder, memory_attention]"
+      - "[prompt_encoder, mask_decoder]"
+      - "[memory_encoder, memory_attention, prompt_encoder, mask_decoder]"
+      - "[memory_encoder, memory_attention, prompt_encoder, mask_decoder, image_encoder]"
+      - "[prompt_encoder]"
+      - "[mask_decoder]"
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - ${args_no_hyphens}
+
+

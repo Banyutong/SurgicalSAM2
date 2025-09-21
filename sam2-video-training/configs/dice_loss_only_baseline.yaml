@@ -1,0 +1,176 @@
+defaults:
+  - data: cholecseg8k
+  - _self_
+
+# Simplified single-file Hydra configuration
+
+# Global settings
+seed: 42
+log_level: INFO
+
+# Lightning module and data module targets
+module:
+  _target_: sam2_video.training.trainer.SAM2LightningModule
+  # Pass unpacked sections instead of a single config
+  model: ${model}
+  loss: ${loss}
+  optimizer: ${optimizer}
+  scheduler: ${scheduler}
+  visualization: ${visualization}
+
+data_module:
+  _target_: sam2_video.training.trainer.SAM2LightningDataModule
+  data: ${data}
+  train_shuffle: true
+
+# Model configuration
+model:
+  _target_: sam2_video.model.sam2model.SAM2Model
+  # Paths
+  checkpoint_path: /bd_byta6000i0/users/surgicaldinov2/kyyang/sam2/checkpoints/sam2.1_hiera_tiny.pt
+  # Resolve relative to original working directory so Hydra's output dir change doesn't break paths
+  config_path: sam2/sam2.1_hiera_t.yaml
+  # Optional fine-tuned weights path (see eval_list.md for examples)
+  fintuned_model_path: null
+
+  # Trainable modules
+  trainable_modules:
+    - memory_attention
+    - memory_encoder
+
+  # Device and image
+  device: cuda
+  # Prompting behavior
+  prompt_type: point  # {point, box, mask}
+  forward_backbone_per_frame_for_eval: false
+  use_activation_checkpoint: false
+  # Reinitialize memory modules (memory_attention, memory_encoder) with PyTorch random weights
+  random_init_memory_modules: false
+
+  # Prompt generation parameters
+  num_pos_points: 1
+  num_neg_points: 0
+  include_center: true
+
+# Loss weights
+loss:
+  # Select loss: {multi_step, bce}
+  type: multi_step
+  # Subsample frames for loss (use frames 0, k, 2k, ...)
+  gt_stride: 1
+  # Multi-step-specific: temperature to scale mask logits before focal/dice (T>0)
+  multistep_logit_temperature: 0.7
+  # Multi-step weights (used when type=multi_step)
+  weight_dict:
+    loss_mask: 0
+    loss_dice: 20
+    loss_iou: 1
+    loss_class: 0
+  supervise_all_iou: true
+  iou_use_l1_loss: true
+  pred_obj_scores: false 
+  focal_gamma_obj_score: 0.0
+  focal_alpha_obj_score: -1.0
+
+
+# Optimizer configuration
+optimizer:
+  type: AdamW
+  lr: 4e-6
+  weight_decay: 0.01
+  betas: [0.9, 0.999]
+  eps: 1e-5
+  amsgrad: true
+  warmup_factor: 0.15
+
+# Scheduler configuration (cosine with warmup)
+scheduler:
+  enabled: true
+  warmup_steps: 500 #replaced by warmup_factor
+  num_cycles: 0.5
+  
+  # Warmup configuration
+  warmup_enabled: true
+  warmup_epochs: 5
+  warmup_start_lr: 1e-8
+
+# Trainer configuration
+trainer:
+  _target_: lightning.pytorch.trainer.trainer.Trainer
+  # Common Trainer arguments
+  accelerator: auto
+  devices: 1
+  precision: 16
+  max_epochs: 0
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 16
+  val_check_interval: 1.0
+  num_sanity_val_steps: 2
+  enable_checkpointing: true
+  enable_progress_bar: true
+  log_every_n_steps: 2
+
+
+# Weights & Biases logger
+wandb:
+  _target_: lightning.pytorch.loggers.wandb.WandbLogger
+  project: sam2-video-training
+  name: null  # default to auto-generated
+  save_dir: ${hydra:run.dir}/logs
+  log_model: false
+  tags: []
+
+# Callbacks (ModelCheckpoint + LR monitor)
+callbacks:
+  - _target_: lightning.pytorch.callbacks.ModelCheckpoint
+    monitor: val/loss_dice
+    mode: min
+    save_top_k: 3
+    save_last: true
+    filename: sam2-epoch{epoch:02d}-val_loss{val/loss_dice:.4f}
+
+  - _target_: lightning.pytorch.callbacks.LearningRateMonitor
+    logging_interval: step
+  
+  - _target_: lightning.pytorch.callbacks.ModelSummary  
+    max_depth: 2
+
+  # - _target_: lightning.pytorch.callbacks.StochasticWeightAveraging
+  #   swa_lrs: 0.005
+
+
+
+# Visualization controls
+visualization:
+  # Conservative defaults to minimize training overhead
+  enabled: false
+  train_every_n_steps: 25  
+  val_first_batch_every_n_epochs: 0
+  max_length: 4
+  stride: 1
+  caption: ${data.name}
+
+# Evaluation configuration (post-training inference + eval)
+eval:
+  enabled: true
+  coco_path: ${data.val_path}
+  output_subdir: "eval"
+  prompt_type: ${model.prompt_type}     # reuse training prompt (point|box|mask)
+  clip_length: null
+  variable_cats: false
+  num_points: ${model.num_pos_points}
+  num_neg_points: ${model.num_neg_points}
+  include_center: ${model.include_center}
+  noised_prompt: false
+  noise_intensity: 0.1
+  bbox_noise_type: "shift_scale"
+  grid_spacing: null
+  save_video_list: null
+  log_per_category: false
+  model_cfg: ${model.config_path}
+  sam2_checkpoint: ${model.checkpoint_path}
+
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}_${now:%H-%M-%S}__${oc.env:OAR_JOB_ID}

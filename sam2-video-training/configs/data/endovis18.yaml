@@ -1,0 +1,19 @@
+# Dataset config: EndoVision18 (COCO-style)
+
+
+name: endovis18
+
+# COCO JSON annotation paths
+train_path: /bd_byta6000i0/users/surgicaldinov2/kyyang/sam2-video-training/data/endovis18_coco_annotations_train_openend.json
+val_path: /bd_byta6000i0/users/surgicaldinov2/kyyang/sam2-video-training/data/endovis18_coco_annotations_val_opened.json
+
+# Image + clip settings (dataset-dependent defaults)
+image_size: 384
+video_clip_length: 10
+stride: 10
+
+# Loader & label space
+num_workers: 2
+batch_size: 1
+num_categories: 7
+

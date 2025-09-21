@@ -1,0 +1,36 @@
+command:
+- ${env}
+- python
+- ${program}
+- ${args_no_hyphens}
+method: bayes
+metric:
+  goal: maximize
+  name: eval/mIoU
+name: pipeline_parameters
+parameters:
+  optimizer.eps:
+    values:
+    - 1.e-05
+    - 1.e-06
+    - 1.e-07
+    - 1.e-08
+  optimizer.lr:
+    distribution: log_uniform_values
+    max: 0.01
+    min: 1.e-06   
+  optimizer.weight_decay:
+    values:
+    - 0.1
+    - 0.01
+    - 0.001
+  trainer.gradient_clip_val:
+    values:
+    - 0.1
+    - 0.5
+    - 1.0
+    - 5.0
+    - 10.0
+  trainer.accumulate_grad_batches:
+    values: [1, 4, 8, 16, 32, 64]
+program: ../train.py

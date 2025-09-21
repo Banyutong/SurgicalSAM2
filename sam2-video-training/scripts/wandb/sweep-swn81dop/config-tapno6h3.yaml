@@ -1,0 +1,6 @@
+wandb_version: 1
+
++combo:
+  value: cholecseg8k/1_mem_sfx
+loss.gt_stride:
+  value: 1

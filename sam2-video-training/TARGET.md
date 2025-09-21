@@ -1,0 +1,2 @@
+- Keep the current trainable style instead of the freeze_module parameters in SAM2Train
+- Use the BatchedVideoDatapoint

@@ -1,0 +1,20 @@
+# @package _global_
+
+loss:
+  # Select loss: {multi_step, bce}
+  type: multi_step
+  # Subsample frames for loss (use frames 0, k, 2k, ...)
+  gt_stride: 1
+  # Multi-step-specific: temperature to scale mask logits before focal/dice (T>0)
+  multistep_logit_temperature: 1.0
+  # Multi-step weights (used when type=multi_step)
+  weight_dict:
+    loss_mask: 10
+    loss_dice: 10
+    loss_iou: 10
+    loss_class: 0
+  supervise_all_iou: true
+  iou_use_l1_loss: true
+  pred_obj_scores: false 
+  focal_gamma_obj_score: 0.0
+  focal_alpha_obj_score: -1.0

@@ -1,0 +1,16 @@
+# @package _global_
+
+defaults:
+- /data/endovis18@data
+model:
+  fintuned_model_path: null
+  trainable_modules:
+  - mask_decoder
+  - prompt_encoder
+  - image_encoder
+  prompt_type: box
+combo:
+  name: endovis18_box_md+pe+ie
+data_module:
+  data: ${data}
+

@@ -1,0 +1,38 @@
+defaults:
+  - config
+  - _self_
+
+model:
+  trainable_modules:
+    - memory_encoder
+    - memory_attention
+  
+
+trainer:
+  max_epochs: 5
+  val_check_interval: 0.25
+  log_every_n_steps: 1
+  gradient_clip_val: 0.1
+  accumulate_grad_batches: 32
+  precision: 16
+
+
+optimizer:
+  lr: 1e-6
+
+visualization:
+  train_every_n_steps: 200
+
+data:
+  video_clip_length: 8
+  stride: 8
+
+loss:
+  type: bce
+  bce_logit_temperature: 1.0
+
++callbacks:
+  - _target_: lightning.pytorch.callbacks.EarlyStopping
+    monitor: "val/total_loss"
+    patience: 8
+    mode: min

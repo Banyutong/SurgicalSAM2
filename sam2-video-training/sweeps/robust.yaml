@@ -1,0 +1,51 @@
+# combo_stride.yaml
+program: train.py
+method: bayes
+metric:
+  name: eval/delta_Dice
+  goal: maximize
+parameters:
+  loss.gt_stride:
+    values: [1, 4, 8]
+  +combo:
+    values:
+    - "cholecseg8k/1_mem"
+    - "cholecseg8k/1_mem_sfx"
+    - "cholecseg8k/2_mem"
+    - "cholecseg8k/2_mem_sfx"
+    - "cholecseg8k/3_mem"
+    - "cholecseg8k/3_mem_sfx"
+    - "cholecseg8k/4_mem"
+    - "cholecseg8k/4_mem_sfx"
+    - "cholecseg8k/5_mem"
+    - "cholecseg8k/5_mem_sfx"
+    - "cholecseg8k/6_mem"
+    - "cholecseg8k/6_mem_sfx"
+    - "cholecseg8k/7_mem_sfx"
+    - "cholecseg8k/8_mem"
+    - "cholecseg8k/8_mem_sfx"
+    - "cholecseg8k/9_mem"
+    - "cholecseg8k/9_mem_sfx"
+  trainer.gradient_clip_val:
+    min: 0.5
+    max: 2.0
+  optimizer.lr:
+    distribution: log_uniform_values
+    max: 0.02
+    min: 1.e-06   
+  optimizer.weight_decay:
+    distribution: log_uniform_values
+    min: 1.e-4
+    max: 0.2
+  trainer.accumulate_grad_batches:
+    values: [1, 4, 8, 16, 32]
+  scheduler.enabled:
+    values: [true, false]
+    
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - ${args_no_hyphens}
+

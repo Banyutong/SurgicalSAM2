@@ -1,0 +1,12 @@
+wandb_version: 1
+
+optimizer.eps:
+  value: 9.642251205102554e-06
+optimizer.lr:
+  value: 0.0005534525961844063
+optimizer.weight_decay:
+  value: 0.0001659477669849168
+trainer.accumulate_grad_batches:
+  value: 4
+trainer.gradient_clip_val:
+  value: 5.978312976289013
