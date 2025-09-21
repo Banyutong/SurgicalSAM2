@@ -1,0 +1,5 @@
+[default]
+entity = sjtu-edu-cn
+project = sam2-sweep
+base_url = https://api.wandb.ai
+

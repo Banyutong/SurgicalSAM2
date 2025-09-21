@@ -1,0 +1,59 @@
+# combo_stride.yaml
+program: train.py
+method: grid
+metric:
+  name: val/total_loss
+  goal: minimize
+parameters:
+  loss.gt_stride:
+    values: [4]
+  +combo:
+    values:
+    - "cholecseg8k/1_mem"
+    - "cholecseg8k/1_mem_sfx"    
+    # - "cholecseg8k/2_mem_sfx"    
+    # - "cholecseg8k/3_mem_sfx"
+
+    - "cholecseg8k/4_mem"
+    - "cholecseg8k/4_mem_sfx"    
+    # - "cholecseg8k/5_mem_sfx"    
+    # - "cholecseg8k/6_mem_sfx"
+    
+    - "cholecseg8k/7_mem"
+    - "cholecseg8k/7_mem_sfx"    
+    # - "cholecseg8k/8_mem_sfx"
+    # - "cholecseg8k/9_mem_sfx"
+    
+    # - "endovis17/1_mem"
+    # - "endovis17/1_mem_sfx"
+    # - "endovis17/2_mem_sfx"
+    # - "endovis17/3_mem_sfx"
+
+    # - "endovis17/4_mem"
+    # - "endovis17/4_mem_sfx"    
+    # - "endovis17/5_mem_sfx"
+    # - "endovis17/6_mem_sfx"
+    
+    # - "endovis17/7_mem"
+    # - "endovis17/7_mem_sfx"
+    # - "endovis17/8_mem_sfx"
+    # - "endovis17/9_mem_sfx"
+  +losses:
+    values:
+    - "dice_main"
+    - "equal"
+    - "focal_main"
+  loss.multistep_logit_temperature:
+    values: [0.5, 0.7, 1, 1.2, 1.5,2,3]
+    
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - ${args_no_hyphens}
+  - "model.fintuned_model_path=null"
+  - "trainer.max_epochs=10"
+  - "-cn=dice_main"
+  
+

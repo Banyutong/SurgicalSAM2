@@ -1,0 +1,62 @@
+# Python compiled files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build and distribution
+build/
+dist/
+*.egg-info/
+*.egg*
+
+# IDE and editor files
+.vscode/
+.DS_Store
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+
+# Output and checkpoint files
+outputs/
+checkpoints/*.pt
+demo/backend/checkpoints/*.pt
+
+# Media and data files
+*.jpg
+*.png
+*.gif
+*.pt
+*.pth
+*.pkl
+predict.json
+
+# Logs and temporary files
+*.log
+*std*
+events*
+logs/
+sam2_logs/
+
+# Test coverage and cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node.js (if needed)
+node_modules/
+
+# System files
+_C.*
+/target
+
+.serena/
+
+wandb/
+

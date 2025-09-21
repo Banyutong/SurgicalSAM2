@@ -1,0 +1,16 @@
+# @package _global_
+
+defaults:
+- /data/endovis18@data
+model:
+  fintuned_model_path: null
+  trainable_modules:
+  - memory_encoder
+  - memory_attention
+  - mask_decoder
+  - prompt_encoder
+  prompt_type: mask
+combo:
+  name: endovis18_mask_mem+md+pe
+data_module:
+  data: ${data}

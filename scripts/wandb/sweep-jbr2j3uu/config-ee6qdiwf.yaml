@@ -1,0 +1,10 @@
+wandb_version: 1
+
++combo:
+  value: optimizer/3
+optimizer.lr:
+  value: 9.788060756248668e-05
+trainer.accumulate_grad_batches:
+  value: 16
+trainer.gradient_clip_val:
+  value: 9.718542425077509

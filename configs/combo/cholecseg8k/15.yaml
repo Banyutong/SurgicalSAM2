@@ -1,0 +1,15 @@
+# @package _global_
+
+defaults:
+- /data/cholecseg8k@data
+model:
+  fintuned_model_path: null
+  trainable_modules:
+  - mask_decoder
+  - prompt_encoder
+  prompt_type: mask
+combo:
+  name: cholecseg8k_mask_md+pe
+data_module:
+  data: ${data}
+

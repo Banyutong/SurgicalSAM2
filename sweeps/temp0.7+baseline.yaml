@@ -1,0 +1,84 @@
+# combo_stride.yaml
+program: train.py
+method: grid
+parameters:
+  loss.gt_stride:
+    values: [4]
+  +combo:
+    values:
+    - "endovis18/1"
+    # - "endovis18/2"
+    # - "endovis18/3"
+    - "endovis18/4"
+    # - "endovis18/5"
+    # - "endovis18/6"
+    - "endovis18/7"
+    # - "endovis18/8"
+    # - "endovis18/9"
+    # - "endovis18/10"
+    # - "endovis18/11"
+    # - "endovis18/12"
+    # - "endovis18/13"
+    # - "endovis18/14"
+    # - "endovis18/15"
+    # - "endovis18/16"
+    # - "endovis18/17"
+    # - "endovis18/18"
+    # - "endovis18/19"
+    # - "endovis18/20"
+    # - "endovis18/21"
+
+    - "endovis17/1"
+    # - "endovis17/2"
+    # - "endovis17/3"
+    - "endovis17/4"
+    # - "endovis17/5"
+    # - "endovis17/6"
+    - "endovis17/7"
+    # - "endovis17/8"
+    # - "endovis17/9"
+    # - "endovis17/10"
+    # - "endovis17/11"
+    # - "endovis17/12"
+    # - "endovis17/13"
+    # - "endovis17/14"
+    # - "endovis17/15"
+    # - "endovis17/16"
+    # - "endovis17/17"
+    # - "endovis17/18"
+    # - "endovis17/19"
+    # - "endovis17/20"    
+    # - "endovis17/21"
+
+    - "cholecseg8k/1"
+    # - "cholecseg8k/2"
+    # - "cholecseg8k/3"
+    - "cholecseg8k/4"
+    # - "cholecseg8k/5"
+    # - "cholecseg8k/6"
+    - "cholecseg8k/7"
+    # - "cholecseg8k/8"
+    # - "cholecseg8k/9"
+    # - "cholecseg8k/10"
+    # - "cholecseg8k/11"
+    # - "cholecseg8k/12"
+    # - "cholecseg8k/13"
+    # - "cholecseg8k/14"
+    # - "cholecseg8k/15"
+    # - "cholecseg8k/16"
+    # - "cholecseg8k/17"
+    # - "cholecseg8k/18"
+    # - "cholecseg8k/19"
+    # - "cholecseg8k/20"
+    # - "cholecseg8k/21"
+    
+command:
+  - ${env}
+  - python
+  - ${program}
+  - ${args_no_hyphens}
+  - "trainer.max_epochs=0"
+  - "model.fintuned_model_path=null"
+  - "-cn=dice_loss_only"
+  
+

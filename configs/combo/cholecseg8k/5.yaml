@@ -1,0 +1,15 @@
+# @package _global_
+
+defaults:
+- /data/cholecseg8k@data
+model:
+  fintuned_model_path: null
+  trainable_modules:
+  - memory_encoder
+  - memory_attention
+  - mask_decoder
+  prompt_type: box
+combo:
+  name: cholecseg8k_box_mem+md
+data_module:
+  data: ${data}
