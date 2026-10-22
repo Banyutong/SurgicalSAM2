@@ -37,6 +37,9 @@ def caculate_dice(pred, gt):
 
 
 def caculate_mae(y_true, y_pred):
+    # cast first: uint8 masks wrap around (0 - 1 == 255)
+    y_true = np.asarray(y_true, dtype=np.float64)
+    y_pred = np.asarray(y_pred, dtype=np.float64)
     return np.mean(np.abs(y_true - y_pred))
 
 

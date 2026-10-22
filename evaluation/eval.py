@@ -33,7 +33,20 @@ def caculate_dice(pred, gt):
 
 
 def caculate_mae(y_true, y_pred):
+    # cast first: uint8 masks wrap around (0 - 1 == 255)
+    y_true = np.asarray(y_true, dtype=np.float64)
+    y_pred = np.asarray(y_pred, dtype=np.float64)
     return np.mean(np.abs(y_true - y_pred))
+
+
+def merge_masks(masks):
+    """合并多个mask为一个mask"""
+    if not masks:
+        return None
+    merged_mask = np.zeros_like(masks[0])
+    for mask in masks:
+        merged_mask = np.logical_or(merged_mask, mask)
+    return merged_mask.astype(np.uint8)
 
 
 def get_image_scores(cocoDT, cocoGT):
@@ -61,20 +74,31 @@ def get_image_scores(cocoDT, cocoGT):
             "avg_scores": {"iou": None, "mae": None, "dice": None},
         }
 
-        for ann_dt in anns_dt:
-            for ann_gt in anns_gt:
+        for cat_id in CAT_IDS:
+            cat_anns_dt = [ann for ann in anns_dt if ann["category_id"] == cat_id]
+            cat_anns_gt = [ann for ann in anns_gt if ann["category_id"] == cat_id]
 
-                if ann_dt["category_id"] == ann_gt["category_id"]:
+            if not cat_anns_dt and not cat_anns_gt:
+                continue
 
-                    mask_dt = cocoDT.annToMask(ann_dt)
-                    mask_gt = cocoGT.annToMask(ann_gt)
-                    iou = caculate_iou(mask_dt, mask_gt)
-                    mae = caculate_mae(mask_dt, mask_gt)
-                    dice = caculate_dice(mask_dt, mask_gt)
+            masks_dt = [cocoDT.annToMask(ann) for ann in cat_anns_dt]
+            masks_gt = [cocoGT.annToMask(ann) for ann in cat_anns_gt]
 
-                    all_iou[ann_dt["category_id"]].append(iou)
-                    all_mae[ann_dt["category_id"]].append(mae)
-                    all_dice[ann_dt["category_id"]].append(dice)
+            merged_mask_dt = merge_masks(masks_dt)
+            merged_mask_gt = merge_masks(masks_gt)
+
+            if merged_mask_dt is None:
+                merged_mask_dt = np.zeros_like(merged_mask_gt)
+            if merged_mask_gt is None:
+                merged_mask_gt = np.zeros_like(merged_mask_dt)
+
+            iou = caculate_iou(merged_mask_dt, merged_mask_gt)
+            mae = caculate_mae(merged_mask_dt, merged_mask_gt)
+            dice = caculate_dice(merged_mask_dt, merged_mask_gt)
+
+            all_iou[cat_id].append(iou)
+            all_mae[cat_id].append(mae)
+            all_dice[cat_id].append(dice)
 
         avg_iou = []
         avg_mae = []

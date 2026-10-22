@@ -770,6 +770,7 @@ def save_as_coco_format(all_video_segments, save_video_list):
             # if frame["is_det_keyframe"] is False:
             #     continue
             merged_mask = {}
+            merged_score = {}
 
             ## merge the mask
             for key, mask_info in video_segments[frame["order_in_video"]].items():
@@ -781,10 +782,12 @@ def save_as_coco_format(all_video_segments, save_video_list):
 
                 if remainder not in merged_mask:
                     merged_mask[remainder] = m_mask
+                    merged_score[remainder] = score
                 else:
                     merged_mask[remainder] = np.logical_or(
                         merged_mask[remainder], m_mask
                     )
+                    merged_score[remainder] = max(merged_score[remainder], score)
 
             for key, mask in merged_mask.items():
                 if mask.sum() == 0:
@@ -798,7 +801,7 @@ def save_as_coco_format(all_video_segments, save_video_list):
                     "segmentation": rle,
                     "bbox": mask_to_bbox(mask),  # 添加 bbox 字段
                     "iscrowd": 0,
-                    "score": score,  # 添加 score 字段
+                    "score": merged_score[key],  # 添加 score 字段
                 }
                 coco_annotations.append(annotation)
 
